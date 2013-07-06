@@ -62,14 +62,19 @@ class ExprGen(BaseGen):
         self._fragment += '{0}'.format(node.value.id)
 
         if isinstance(node.slice, ast.Index):
-            tup = node.slice.value.elts
-            x = ExprGen(self.varc).get_fragment(tup[0])
-            y = '0'
-
-            if len(tup) == 2:
+            if isinstance(node.slice.value, ast.Tuple):
+                tup = node.slice.value.elts
+                x = ExprGen(self.varc).get_fragment(tup[0])
                 y = ExprGen(self.varc).get_fragment(tup[1])
-            
-            self._fragment += '[(_idy + ({0})) * _width + _idx + ({1})]'.format(y, x)
+                self._fragment += '[(_idy + ({0})) * _width + _idx + ({1})]'.format(y, x)
+            else:
+                index = ExprGen(self.varc).get_fragment(node.slice.value)
+                self._fragment += '[{0}]'.format(index)
+
+    def visit_Call(self, node):
+        self._fragment += node.func.id + '('
+        self._fragment += ', '.join(ExprGen(self.varc).get_fragment(arg) for arg in node.args)
+        self._fragment += ')'
 
 
 class BodyGen(BaseGen):
