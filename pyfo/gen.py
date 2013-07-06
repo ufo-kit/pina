@@ -78,7 +78,6 @@ class BodyGen(BaseGen):
 
     def visit_Assign(self, node):
         for target in node.targets:
-            print type(target)
             if isinstance(target, ast.Name):
                 if not self.varc.has(target.id):
                     self._fragment += 'float '
@@ -121,7 +120,7 @@ class FuncGen(ast.NodeVisitor):
         self.kernel += 'unsigned int _width = get_global_size(0);\n'
         self.kernel += 'unsigned int _idx = get_global_id(0);\n'
         self.kernel += 'unsigned int _idy = get_global_id(1);\n'
-        self.kernel += 'unsigned int _index = _idy * get_global_size(0) + _idx;\n'
+        self.kernel += 'unsigned int _index = _idy * _width + _idx;\n'
 
         self.kernel += gen.get_fragment(node)
         self.kernel += '}'
