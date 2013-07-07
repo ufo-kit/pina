@@ -6,7 +6,7 @@ SETUP = $(PYTHON) setup.py
 all: build
 
 install: dist
-	pip install dist/*.tar.gz
+	$(SETUP) install
 
 build:
 	$(SETUP) build
