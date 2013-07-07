@@ -7,11 +7,14 @@ import inspect
 OP_MAP = {ast.Add: '+',
           ast.Sub: '-',
           ast.Mult: '*',
-          ast.Div: '/'}
+          ast.Div: '/',
+          ast.And: '&&',
+          ast.Or: '||',
+          ast.Lt: '<'}
 
 
 def _get_op_char(node):
-    return OP_MAP[type(node.op)]
+    return OP_MAP[type(node)]
 
 
 class VariableContainer(object):
@@ -52,8 +55,18 @@ class ExprGen(BaseGen):
 
     def visit_BinOp(self, node):
         self._fragment += ExprGen(self.varc).get_fragment(node.left)
-        self._fragment += ' {0} '.format(_get_op_char(node))
+        self._fragment += ' {0} '.format(_get_op_char(node.op))
         self._fragment += ExprGen(self.varc).get_fragment(node.right)
+
+    def visit_BoolOp(self, node):
+        self._fragment += ExprGen(self.varc).get_fragment(node.values[0])
+        self._fragment += ' {0} '.format(_get_op_char(node.op))
+        self._fragment += ExprGen(self.varc).get_fragment(node.values[1])
+
+    def visit_Compare(self, node):
+        self._fragment += ExprGen(self.varc).get_fragment(node.left)
+        self._fragment += ' {0} '.format(_get_op_char(node.ops[0]))
+        self._fragment += ExprGen(self.varc).get_fragment(node.comparators[0])
 
     def visit_Num(self, node):
         self._fragment += str(node.n)
@@ -70,6 +83,11 @@ class ExprGen(BaseGen):
             else:
                 index = ExprGen(self.varc).get_fragment(node.slice.value)
                 self._fragment += '[{0}]'.format(index)
+
+    def visit_IfExp(self, node):
+        self._fragment += ExprGen(self.varc).get_fragment(node.test)
+        self._fragment += ' ?  {0}'.format(ExprGen(self.varc).get_fragment(node.body))
+        self._fragment += ' : {0};'.format(ExprGen(self.varc).get_fragment(node.orelse))
 
     def visit_Call(self, node):
         self._fragment += node.func.id + '('
@@ -93,7 +111,7 @@ class BodyGen(BaseGen):
 
     def visit_AugAssign(self, node):
         self._fragment += self.varc.get_var(node.target.id, None)
-        self._fragment += ' {0}= '.format(_get_op_char(node))
+        self._fragment += ' {0}= '.format(_get_op_char(node.op))
         self._fragment += ExprGen(self.varc).get_fragment(node.value)
         self._fragment += ';\n'
 
