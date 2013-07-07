@@ -92,11 +92,10 @@ class BodyGen(BaseGen):
                 self._fragment += '{0} = {1};\n'.format(location, val_expr)
 
     def visit_AugAssign(self, node):
-        self._fragment += self.get_var(node.target.id, None)
+        self._fragment += self.varc.get_var(node.target.id, None)
         self._fragment += ' {0}= '.format(_get_op_char(node))
         self._fragment += ExprGen(self.varc).get_fragment(node.value)
         self._fragment += ';\n'
-        ast.NodeVisitor.generic_visit(self, node)
 
     def visit_Return(self, node):
         expr = ExprGen(self.varc).get_fragment(node)
