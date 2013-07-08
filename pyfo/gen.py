@@ -37,6 +37,9 @@ class VariableContainer(object):
 
 
 class BaseGen(ast.NodeVisitor):
+
+    indentation = ''
+
     def __init__(self, varc):
         self.varc = varc
 
@@ -45,54 +48,63 @@ class BaseGen(ast.NodeVisitor):
         self.visit(node)
         return self._fragment
 
+    def add(self, fragment):
+        self._fragment += self.indentation + fragment
+
+    def indent(self):
+        self.indentation += '    '
+
+    def unindent(self):
+        self.indentation = self.indentation[:-4]
+
 
 class ExprGen(BaseGen):
     def __init__(self, varc):
         super(ExprGen, self).__init__(varc)
 
     def visit_Name(self, node):
-        self._fragment += self.varc.get_var(node.id, None)
+        self.add(self.varc.get_var(node.id, None))
 
     def visit_BinOp(self, node):
-        self._fragment += ExprGen(self.varc).get_fragment(node.left)
-        self._fragment += ' {0} '.format(_get_op_char(node.op))
-        self._fragment += ExprGen(self.varc).get_fragment(node.right)
+        self.add(ExprGen(self.varc).get_fragment(node.left))
+        self.add(' {0} '.format(_get_op_char(node.op)))
+        self.add(ExprGen(self.varc).get_fragment(node.right))
 
     def visit_BoolOp(self, node):
-        self._fragment += ExprGen(self.varc).get_fragment(node.values[0])
-        self._fragment += ' {0} '.format(_get_op_char(node.op))
-        self._fragment += ExprGen(self.varc).get_fragment(node.values[1])
+        self.add(ExprGen(self.varc).get_fragment(node.values[0]))
+        self.add(' {0} '.format(_get_op_char(node.op)))
+        self.add(ExprGen(self.varc).get_fragment(node.values[1]))
 
     def visit_Compare(self, node):
-        self._fragment += ExprGen(self.varc).get_fragment(node.left)
-        self._fragment += ' {0} '.format(_get_op_char(node.ops[0]))
-        self._fragment += ExprGen(self.varc).get_fragment(node.comparators[0])
+        self.add(ExprGen(self.varc).get_fragment(node.left))
+        self.add(' {0} '.format(_get_op_char(node.ops[0])))
+        self.add(ExprGen(self.varc).get_fragment(node.comparators[0]))
 
     def visit_Num(self, node):
-        self._fragment += str(node.n)
+        self.add(str(node.n))
 
     def visit_Subscript(self, node):
-        self._fragment += '{0}'.format(node.value.id)
+        self.add('{0}'.format(node.value.id))
 
         if isinstance(node.slice, ast.Index):
             if isinstance(node.slice.value, ast.Tuple):
                 tup = node.slice.value.elts
                 x = ExprGen(self.varc).get_fragment(tup[0])
                 y = ExprGen(self.varc).get_fragment(tup[1])
-                self._fragment += '[(_idy + ({0})) * _width + _idx + ({1})]'.format(y, x)
+                self.add('[(_idy + ({0})) * _width + _idx + ({1})]'.format(y, x))
             else:
                 index = ExprGen(self.varc).get_fragment(node.slice.value)
-                self._fragment += '[{0}]'.format(index)
+                self.add('[{0}]'.format(index))
 
     def visit_IfExp(self, node):
-        self._fragment += ExprGen(self.varc).get_fragment(node.test)
-        self._fragment += ' ?  {0}'.format(ExprGen(self.varc).get_fragment(node.body))
-        self._fragment += ' : {0};'.format(ExprGen(self.varc).get_fragment(node.orelse))
+        self.add(ExprGen(self.varc).get_fragment(node.test))
+        self.add(' ?  {0}'.format(ExprGen(self.varc).get_fragment(node.body)))
+        self.add(' : {0};'.format(ExprGen(self.varc).get_fragment(node.orelse)))
 
     def visit_Call(self, node):
-        self._fragment += node.func.id + '('
-        self._fragment += ', '.join(ExprGen(self.varc).get_fragment(arg) for arg in node.args)
-        self._fragment += ')'
+        self.add(node.func.id + '(')
+        self.add(', '.join(ExprGen(self.varc).get_fragment(arg) for arg in node.args))
+        self.add(')')
 
 
 class StmtGen(BaseGen):
@@ -101,38 +113,41 @@ class StmtGen(BaseGen):
 
     def visit_Return(self, node):
         expr = ExprGen(self.varc).get_fragment(node)
-        self._fragment += 'output[_index] = {0};\n'.format(expr)
+        self.add('output[_index] = {0};\n'.format(expr))
 
     def visit_Assign(self, node):
         for target in node.targets:
             if isinstance(target, ast.Name):
                 if not self.varc.has(target.id):
-                    self._fragment += 'float '
+                    self.add('float ')
 
                 location = self.varc.get_var(target.id, None)
                 val_expr = ExprGen(self.varc).get_fragment(node.value)
-                self._fragment += '{0} = {1};\n'.format(location, val_expr)
+                self.add('{0} = {1};\n'.format(location, val_expr))
 
     def visit_AugAssign(self, node):
-        self._fragment += self.varc.get_var(node.target.id, None)
-        self._fragment += ' {0}= '.format(_get_op_char(node.op))
-        self._fragment += ExprGen(self.varc).get_fragment(node.value)
-        self._fragment += ';\n'
+        self.add(self.varc.get_var(node.target.id, None))
+        self.add(' {0}= '.format(_get_op_char(node.op)))
+        self.add(ExprGen(self.varc).get_fragment(node.value))
+        self.add(';\n')
 
     def visit_If(self, node):
+
+        def visit_body(body_node):
+            self.indent()
+            for stmt in body_node:
+                self.add(StmtGen(self.varc).get_fragment(stmt))
+            self.unindent()
+
         test = ExprGen(self.varc).get_fragment(node.test)
-        self._fragment += 'if (%s) {\n' % test
-
-        for stmt in node.body:
-            self._fragment += StmtGen(self.varc).get_fragment(stmt)
-
-        self._fragment += '}\n'
+        self.add('if (%s) {\n' % test)
+        visit_body(node.body)
+        self.add('}\n')
 
         if len(node.orelse) > 0:
-            self._fragment += 'else {\n'
-            for stmt in node.orelse:
-                self._fragment += StmtGen(self.varc).get_fragment(stmt)
-            self._fragment += '}\n'
+            self.add('else {\n')
+            visit_body(node.orelse)
+            self.add('}\n')
 
 
 class FuncGen(ast.NodeVisitor):
@@ -144,8 +159,6 @@ class FuncGen(ast.NodeVisitor):
         full_args = [arg.id for arg in node.args.args]
         full_args += ['output']
         arg_list = ', '.join(("__global float *{0}".format(name) for name in full_args))
-
-        print node.body
 
         varc = VariableContainer()
 
