@@ -95,9 +95,13 @@ class ExprGen(BaseGen):
         self._fragment += ')'
 
 
-class BodyGen(BaseGen):
+class StmtGen(BaseGen):
     def __init__(self, varc):
-        super(BodyGen, self).__init__(varc)
+        super(StmtGen, self).__init__(varc)
+
+    def visit_Return(self, node):
+        expr = ExprGen(self.varc).get_fragment(node)
+        self._fragment += 'output[_index] = {0};\n'.format(expr)
 
     def visit_Assign(self, node):
         for target in node.targets:
@@ -115,9 +119,20 @@ class BodyGen(BaseGen):
         self._fragment += ExprGen(self.varc).get_fragment(node.value)
         self._fragment += ';\n'
 
-    def visit_Return(self, node):
-        expr = ExprGen(self.varc).get_fragment(node)
-        self._fragment += 'output[_index] = {0};\n'.format(expr)
+    def visit_If(self, node):
+        test = ExprGen(self.varc).get_fragment(node.test)
+        self._fragment += 'if (%s) {\n' % test
+
+        for stmt in node.body:
+            self._fragment += StmtGen(self.varc).get_fragment(stmt)
+
+        self._fragment += '}\n'
+
+        if len(node.orelse) > 0:
+            self._fragment += 'else {\n'
+            for stmt in node.orelse:
+                self._fragment += StmtGen(self.varc).get_fragment(stmt)
+            self._fragment += '}\n'
 
 
 class FuncGen(ast.NodeVisitor):
@@ -130,12 +145,14 @@ class FuncGen(ast.NodeVisitor):
         full_args += ['output']
         arg_list = ', '.join(("__global float *{0}".format(name) for name in full_args))
 
+        print node.body
+
         varc = VariableContainer()
 
         for arg in full_args:
             varc.global_vars.append(arg)
 
-        gen = BodyGen(varc)
+        gen = StmtGen(varc)
 
         self.kernel += '__kernel void {0}({1})\n'.format(node.name, arg_list)
         self.kernel += '{\n'
