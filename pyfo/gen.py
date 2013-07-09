@@ -150,19 +150,33 @@ class StmtGen(BaseGen):
             self.add('}\n')
 
 
+def get_typed_arguments(arg_names, arg_types):
+    num_types = len(arg_types) if arg_types else 0
+
+    for i, arg_name in enumerate(arg_names):
+        # No type found
+        if i >= num_types:
+            yield '__global float *{0}'.format(arg_name)
+        else:
+            t = arg_types[i]
+            yield '{0} {1} *{2}'.format(t.qual, t.type_name, arg_name)
+
+
+
 class FuncGen(ast.NodeVisitor):
-    def __init__(self):
+    def __init__(self, arg_types):
         super(FuncGen, self).__init__()
         self.kernel = ''
+        self.arg_types = arg_types
 
     def visit_FunctionDef(self, node):
-        full_args = [arg.id for arg in node.args.args]
-        full_args += ['output']
-        arg_list = ', '.join(("__global float *{0}".format(name) for name in full_args))
+        arg_list = ''
+        arg_names = [arg.id for arg in node.args.args] + ['output']
 
+        arg_list = ', '.join(get_typed_arguments(arg_names, self.arg_types))
         varc = VariableContainer()
 
-        for arg in full_args:
+        for arg in arg_names:
             varc.global_vars.append(arg)
 
         gen = StmtGen(varc)
@@ -178,9 +192,9 @@ class FuncGen(ast.NodeVisitor):
         self.kernel += '}'
 
 
-def make_kernel(func):
+def make_kernel(func, arg_types=None):
     source = inspect.getsource(func)
     tree = ast.parse(source)
-    gen = FuncGen()
+    gen = FuncGen(arg_types)
     gen.visit(tree)
     return gen.kernel
