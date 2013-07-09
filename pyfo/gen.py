@@ -82,9 +82,17 @@ class ExprGen(BaseGen):
         self.add(ExprGen(self.varc).get_fragment(node.values[1]))
 
     def visit_Compare(self, node):
-        self.add(ExprGen(self.varc).get_fragment(node.left))
-        self.add(' {0} '.format(_get_op_char(node.ops[0])))
-        self.add(ExprGen(self.varc).get_fragment(node.comparators[0]))
+        def gen_comparisons():
+            left = node.left
+
+            for op, comparator in zip(node.ops, node.comparators):
+                s = ExprGen(self.varc).get_fragment(left)
+                s += ' {0} '.format(_get_op_char(op))
+                s += ExprGen(self.varc).get_fragment(comparator)
+                left = comparator
+                yield s
+
+        self.add(' && '.join('({0})'.format(c) for c in gen_comparisons()))
 
     def visit_Num(self, node):
         self.add(str(node.n))
