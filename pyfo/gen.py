@@ -4,13 +4,19 @@ import ast
 import inspect
 
 
-OP_MAP = {ast.Add: '+',
-          ast.Sub: '-',
-          ast.Mult: '*',
-          ast.Div: '/',
-          ast.And: '&&',
-          ast.Or: '||',
-          ast.Lt: '<'}
+OP_MAP = {
+    ast.Add: '+',
+    ast.Sub: '-',
+    ast.Mult: '*',
+    ast.Div: '/',
+    ast.And: '&&',
+    ast.Or: '||',
+    ast.Lt: '<',
+    ast.LtE: '<=',
+    ast.Gt: '>',
+    ast.GtE: '>=',
+    ast.NotEq: '!=',
+}
 
 
 def _get_op_char(node):
