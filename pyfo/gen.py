@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+import sys
+
+PYTHON_3 = sys.version_info >= (3, 0)
+
 import ast
 import inspect
 
@@ -185,7 +189,11 @@ class FuncGen(ast.NodeVisitor):
 
     def visit_FunctionDef(self, node):
         arg_list = ''
-        arg_names = [arg.id for arg in node.args.args] + ['output']
+
+        if PYTHON_3:
+            arg_names = [arg.arg for arg in node.args.args] + ['output']
+        else:
+            arg_names = [arg.id for arg in node.args.args] + ['output']
 
         arg_list = ', '.join(get_typed_arguments(arg_names, self.arg_types))
         varc = VariableContainer()
