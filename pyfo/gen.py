@@ -168,17 +168,36 @@ class StmtGen(BaseGen):
             self.add('}\n')
 
 
-def get_typed_arguments(arg_names, arg_types):
+
+def get_typed_arguments(args, arg_types):
     num_types = len(arg_types) if arg_types else 0
 
-    for i, arg_name in enumerate(arg_names):
-        # No type found
-        if i >= num_types:
-            yield '__global float *{0}'.format(arg_name)
-        else:
-            t = arg_types[i]
-            yield '{0} {1} *{2}'.format(t.qual, t.type_name, arg_name)
+    for i, arg in enumerate(args):
+        arg_name = arg.arg if PYTHON_3 else arg.id
 
+        if PYTHON_3:
+            if isinstance(arg.annotation, ast.Name):
+                yield '{0} {1}'.format(arg.annotation.id, arg_name)
+            elif isinstance(arg.annotation, ast.List):
+                # DANGEROUS: assumes "elts" has elements and elts[0] is of type
+                # ast.Name!
+                yield '{0} *{1}'.format(arg.annotation.elts[0].id, arg_name)
+            else:
+                yield '__global float *{0}'.format(arg_name)
+        else:
+            if i >= num_types:
+                # No type found
+                yield '__global float *{0}'.format(arg_name)
+            else:
+                t = arg_types[i]
+                yield '{0} {1} *{2}'.format(t.qual, t.type_name, arg_name)
+
+
+def get_argument_names(args):
+    if PYTHON_3:
+        return [arg.arg for arg in args] + ['output']
+    else:
+        return [arg.id for arg in args] + ['output']
 
 
 class FuncGen(ast.NodeVisitor):
@@ -188,18 +207,9 @@ class FuncGen(ast.NodeVisitor):
         self.arg_types = arg_types
 
     def visit_FunctionDef(self, node):
-        arg_list = ''
-
-        if PYTHON_3:
-            arg_names = [arg.arg for arg in node.args.args] + ['output']
-        else:
-            arg_names = [arg.id for arg in node.args.args] + ['output']
-
-        arg_list = ', '.join(get_typed_arguments(arg_names, self.arg_types))
+        arg_list = ', '.join(get_typed_arguments(node.args.args, self.arg_types))
         varc = VariableContainer()
-
-        for arg in arg_names:
-            varc.global_vars.append(arg)
+        varc.global_vars.extend(get_argument_names(node.args.args))
 
         gen = StmtGen(varc)
 
@@ -209,7 +219,6 @@ class FuncGen(ast.NodeVisitor):
         self.kernel += 'unsigned int _idx = get_global_id(0);\n'
         self.kernel += 'unsigned int _idy = get_global_id(1);\n'
         self.kernel += 'unsigned int _index = _idy * _width + _idx;\n'
-
         self.kernel += gen.get_fragment(node)
         self.kernel += '}'
 
