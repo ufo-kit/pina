@@ -145,7 +145,7 @@ class StmtGen(BaseGen):
 
     def visit_Return(self, node):
         expr = ExprGen(self.varc).fragment(node)
-        self.add('output[_index] = {0};\n'.format(expr))
+        self.add('_output[_index] = {0};\n'.format(expr))
 
     def visit_Assign(self, node):
         for target in node.targets:
@@ -188,13 +188,28 @@ def type_args(args, arg_types):
             yield (name, Variable(name, arg_type))
 
 
-def argument_names(args):
+def argument_names(args, has_output):
     for arg in args:
-        if PYTHON_3:
-            yield arg.arg
-        else:
-            yield arg.id
-    yield 'output'
+        yield arg.arg if PYTHON_3 else arg.id
+
+    if has_output:
+        yield '_output'
+
+
+def has_return_stmt(node):
+    class Visitor(ast.NodeVisitor):
+        def __init__(self):
+            self.has_return = False
+
+        def generic_visit(self, node):
+            ast.NodeVisitor.generic_visit(self, node)
+
+        def visit_Return(self, node):
+            self.has_return = True
+
+    v = Visitor()
+    v.visit(node)
+    return v.has_return
 
 
 class FuncGen(ast.NodeVisitor):
@@ -204,11 +219,15 @@ class FuncGen(ast.NodeVisitor):
         self.arg_types = arg_types
 
     def visit_FunctionDef(self, node):
+        has_return = has_return_stmt(node)
         varc = dict(type_args(node.args.args, self.arg_types))
-        varc['output'] = Variable('output', Global(float))
+
+        if has_return:
+            varc['_output'] = Variable('_output', Global(float))
 
         arg_list = ', '.join(get_var(varc, name).declaration()
-                             for name in argument_names(node.args.args))
+                             for name in argument_names(node.args.args,
+                                                        has_return))
 
         gen = StmtGen(varc)
 
