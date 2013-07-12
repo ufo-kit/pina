@@ -1,23 +1,25 @@
 import types
+import inspect
 from .gen import make_kernel
-from .qualifiers import AddressSpaceQualifier, NoQualifier
+from .qualifiers import *
+
+
+def get_qualified_arg(arg):
+    if isinstance(arg, AddressSpaceQualifier):
+        return arg
+
+    if arg in (Global, Constant, Local):
+        # Someone passed in the class name without constructing a new
+        # qualifier object (e.g. @source(Constant)), in this case we
+        # assume float type and instantiate a new qualifier.
+        return arg(float)
+
+    return NoQualifier(arg)
 
 
 def source(*args):
     def _source(func):
-        qual_args = []
-
-        for arg in args:
-            if isinstance(arg, AddressSpaceQualifier):
-                qual_args.append(arg)
-            elif isinstance(arg, AddressSpaceQualifier.__class__):
-                # Someone passed in the class name without constructing a new
-                # qualifier object (e.g. @source(Constant)), in this case we
-                # assume float type and instantiate a new qualifier.
-                qual_args.append(arg(float))
-            else:
-                qual_args.append(NoQualifier(arg))
-
+        qual_args = [get_qualified_arg(arg) for arg in args]
         return make_kernel(func, qual_args)
 
     # The decorator was instantiated without any arguments. In this case

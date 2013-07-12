@@ -7,6 +7,8 @@ PYTHON_3 = sys.version_info >= (3, 0)
 import ast
 import inspect
 
+from .qualifiers import NoQualifier
+
 
 OP_MAP = {
     ast.Add: '+',
@@ -168,7 +170,6 @@ class StmtGen(BaseGen):
             self.add('}\n')
 
 
-
 def get_typed_arguments(args, arg_types):
     num_types = len(arg_types) if arg_types else 0
 
@@ -178,10 +179,6 @@ def get_typed_arguments(args, arg_types):
         if PYTHON_3:
             if isinstance(arg.annotation, ast.Name):
                 yield '{0} {1}'.format(arg.annotation.id, arg_name)
-            elif isinstance(arg.annotation, ast.List):
-                # DANGEROUS: assumes "elts" has elements and elts[0] is of type
-                # ast.Name!
-                yield '{0} *{1}'.format(arg.annotation.elts[0].id, arg_name)
             else:
                 yield '__global float *{0}'.format(arg_name)
         else:
@@ -190,7 +187,8 @@ def get_typed_arguments(args, arg_types):
                 yield '__global float *{0}'.format(arg_name)
             else:
                 t = arg_types[i]
-                yield '{0} {1} *{2}'.format(t.qual, t.type_name, arg_name)
+                array = '*' if not isinstance(t, NoQualifier) else ''
+                yield '{0} {1} {2}{3}'.format(t.qual, t.type_name, array, arg_name)
 
 
 def get_argument_names(args):
