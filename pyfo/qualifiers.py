@@ -25,22 +25,22 @@ class AddressSpaceQualifier(object):
 class NoQualifier(AddressSpaceQualifier):
     def __init__(self, python_type):
         super(NoQualifier, self).__init__(python_type)
-        self.qual = ''
+        self.cl_keyword = ''
 
 
 class Global(AddressSpaceQualifier):
     def __init__(self, python_type):
         super(Global, self).__init__(python_type)
-        self.qual = '__global'
+        self.cl_keyword = '__global'
 
 
 class Constant(AddressSpaceQualifier):
     def __init__(self, python_type):
         super(Constant, self).__init__(python_type)
-        self.qual = '__constant'
+        self.cl_keyword = '__constant'
 
 
 class Local(AddressSpaceQualifier):
     def __init__(self, python_type):
         super(Local, self).__init__(python_type)
-        self.qual = '__local'
+        self.cl_keyword = '__local'

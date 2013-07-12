@@ -7,7 +7,8 @@ PYTHON_3 = sys.version_info >= (3, 0)
 import ast
 import inspect
 
-from .qualifiers import NoQualifier
+from itertools import izip_longest
+from .qualifiers import NoQualifier, Global
 
 
 OP_MAP = {
@@ -29,23 +30,33 @@ def _get_op_char(node):
     return OP_MAP[type(node)]
 
 
-class VariableContainer(object):
-    def __init__(self):
-        self.global_vars = []
-        self.local_vars = []
+class Variable(object):
+    def __init__(self, name, qualifier=None):
+        self.name = name
+        self.qualifier = qualifier if qualifier else NoQualifier(float)
 
-    def has(self, var):
-        return var in self.global_vars or var in self.local_vars
+    def declaration(self):
+        asterisk = '' if isinstance(self.qualifier, NoQualifier) else '*'
+        return '{0} {1} {2}{3}'.format(self.qualifier.cl_keyword,
+                                       self.qualifier.type_name,
+                                       asterisk,
+                                       self.name)
 
-    def get_var(self, var, expr=None):
-        if var in self.global_vars:
-            if expr:
-                return '{0}[{1}]'.format(var, expr.get_fragment())
-            else:
-                return '{0}[_index]'.format(var)
+    def fragment(self, expr=None):
+        if isinstance(self.qualifier, NoQualifier):
+            return self.name
 
-        self.local_vars.append(var)
-        return var
+        if expr:
+            return '{0}[{1}]'.format(self.name, expr.fragment())
+
+        return '{0}[_index]'.format(self.name)
+
+
+def get_var(d, name):
+    if not name in d:
+        d[name] = Variable(name, NoQualifier('float'))
+
+    return d[name]
 
 
 class BaseGen(ast.NodeVisitor):
@@ -55,7 +66,7 @@ class BaseGen(ast.NodeVisitor):
     def __init__(self, varc):
         self.varc = varc
 
-    def get_fragment(self, node):
+    def fragment(self, node):
         self._fragment = ''
         self.visit(node)
         return self._fragment
@@ -75,26 +86,26 @@ class ExprGen(BaseGen):
         super(ExprGen, self).__init__(varc)
 
     def visit_Name(self, node):
-        self.add(self.varc.get_var(node.id, None))
+        self.add(get_var(self.varc, node.id).fragment())
 
     def visit_BinOp(self, node):
-        self.add(ExprGen(self.varc).get_fragment(node.left))
+        self.add(ExprGen(self.varc).fragment(node.left))
         self.add(' {0} '.format(_get_op_char(node.op)))
-        self.add(ExprGen(self.varc).get_fragment(node.right))
+        self.add(ExprGen(self.varc).fragment(node.right))
 
     def visit_BoolOp(self, node):
-        self.add(ExprGen(self.varc).get_fragment(node.values[0]))
+        self.add(ExprGen(self.varc).fragment(node.values[0]))
         self.add(' {0} '.format(_get_op_char(node.op)))
-        self.add(ExprGen(self.varc).get_fragment(node.values[1]))
+        self.add(ExprGen(self.varc).fragment(node.values[1]))
 
     def visit_Compare(self, node):
         def gen_comparisons():
             left = node.left
 
             for op, comparator in zip(node.ops, node.comparators):
-                s = ExprGen(self.varc).get_fragment(left)
+                s = ExprGen(self.varc).fragment(left)
                 s += ' {0} '.format(_get_op_char(op))
-                s += ExprGen(self.varc).get_fragment(comparator)
+                s += ExprGen(self.varc).fragment(comparator)
                 left = comparator
                 yield s
 
@@ -109,21 +120,22 @@ class ExprGen(BaseGen):
         if isinstance(node.slice, ast.Index):
             if isinstance(node.slice.value, ast.Tuple):
                 tup = node.slice.value.elts
-                x = ExprGen(self.varc).get_fragment(tup[0])
-                y = ExprGen(self.varc).get_fragment(tup[1])
+                x = ExprGen(self.varc).fragment(tup[0])
+                y = ExprGen(self.varc).fragment(tup[1])
                 self.add('[(_idy + ({0})) * _width + _idx + ({1})]'.format(y, x))
             else:
-                index = ExprGen(self.varc).get_fragment(node.slice.value)
+                index = ExprGen(self.varc).fragment(node.slice.value)
                 self.add('[{0}]'.format(index))
 
     def visit_IfExp(self, node):
-        self.add(ExprGen(self.varc).get_fragment(node.test))
-        self.add(' ?  {0}'.format(ExprGen(self.varc).get_fragment(node.body)))
-        self.add(' : {0};'.format(ExprGen(self.varc).get_fragment(node.orelse)))
+        self.add(ExprGen(self.varc).fragment(node.test))
+        self.add(' ?  {0}'.format(ExprGen(self.varc).fragment(node.body)))
+        self.add(' : {0};'.format(ExprGen(self.varc).fragment(node.orelse)))
 
     def visit_Call(self, node):
         self.add(node.func.id + '(')
-        self.add(', '.join(ExprGen(self.varc).get_fragment(arg) for arg in node.args))
+        self.add(', '.join(ExprGen(self.varc).fragment(arg)
+                           for arg in node.args))
         self.add(')')
 
 
@@ -132,34 +144,33 @@ class StmtGen(BaseGen):
         super(StmtGen, self).__init__(varc)
 
     def visit_Return(self, node):
-        expr = ExprGen(self.varc).get_fragment(node)
+        expr = ExprGen(self.varc).fragment(node)
         self.add('output[_index] = {0};\n'.format(expr))
 
     def visit_Assign(self, node):
         for target in node.targets:
             if isinstance(target, ast.Name):
-                if not self.varc.has(target.id):
+                if not target.id in self.varc:
                     self.add('float ')
 
-                location = self.varc.get_var(target.id, None)
-                val_expr = ExprGen(self.varc).get_fragment(node.value)
+                location = get_var(self.varc, target.id).fragment()
+                val_expr = ExprGen(self.varc).fragment(node.value)
                 self.add('{0} = {1};\n'.format(location, val_expr))
 
     def visit_AugAssign(self, node):
         self.add(self.varc.get_var(node.target.id, None))
         self.add(' {0}= '.format(_get_op_char(node.op)))
-        self.add(ExprGen(self.varc).get_fragment(node.value))
+        self.add(ExprGen(self.varc).fragment(node.value))
         self.add(';\n')
 
     def visit_If(self, node):
-
         def visit_body(body_node):
             self.indent()
             for stmt in body_node:
-                self.add(StmtGen(self.varc).get_fragment(stmt))
+                self.add(StmtGen(self.varc).fragment(stmt))
             self.unindent()
 
-        test = ExprGen(self.varc).get_fragment(node.test)
+        test = ExprGen(self.varc).fragment(node.test)
         self.add('if (%s) {\n' % test)
         visit_body(node.body)
         self.add('}\n')
@@ -170,32 +181,20 @@ class StmtGen(BaseGen):
             self.add('}\n')
 
 
-def get_typed_arguments(args, arg_types):
-    num_types = len(arg_types) if arg_types else 0
+def type_args(args, arg_types):
+    for arg, arg_type in izip_longest(args, arg_types, fillvalue=None):
+        if arg:
+            name = arg.arg if PYTHON_3 else arg.id
+            yield (name, Variable(name, arg_type))
 
-    for i, arg in enumerate(args):
-        arg_name = arg.arg if PYTHON_3 else arg.id
 
+def argument_names(args):
+    for arg in args:
         if PYTHON_3:
-            if isinstance(arg.annotation, ast.Name):
-                yield '{0} {1}'.format(arg.annotation.id, arg_name)
-            else:
-                yield '__global float *{0}'.format(arg_name)
+            yield arg.arg
         else:
-            if i >= num_types:
-                # No type found
-                yield '__global float *{0}'.format(arg_name)
-            else:
-                t = arg_types[i]
-                array = '*' if not isinstance(t, NoQualifier) else ''
-                yield '{0} {1} {2}{3}'.format(t.qual, t.type_name, array, arg_name)
-
-
-def get_argument_names(args):
-    if PYTHON_3:
-        return [arg.arg for arg in args] + ['output']
-    else:
-        return [arg.id for arg in args] + ['output']
+            yield arg.id
+    yield 'output'
 
 
 class FuncGen(ast.NodeVisitor):
@@ -205,9 +204,11 @@ class FuncGen(ast.NodeVisitor):
         self.arg_types = arg_types
 
     def visit_FunctionDef(self, node):
-        arg_list = ', '.join(get_typed_arguments(node.args.args, self.arg_types))
-        varc = VariableContainer()
-        varc.global_vars.extend(get_argument_names(node.args.args))
+        varc = dict(type_args(node.args.args, self.arg_types))
+        varc['output'] = Variable('output', Global(float))
+
+        arg_list = ', '.join(get_var(varc, name).declaration()
+                             for name in argument_names(node.args.args))
 
         gen = StmtGen(varc)
 
@@ -217,7 +218,7 @@ class FuncGen(ast.NodeVisitor):
         self.kernel += 'unsigned int _idx = get_global_id(0);\n'
         self.kernel += 'unsigned int _idy = get_global_id(1);\n'
         self.kernel += 'unsigned int _index = _idy * _width + _idx;\n'
-        self.kernel += gen.get_fragment(node)
+        self.kernel += gen.fragment(node)
         self.kernel += '}'
 
 
