@@ -13,6 +13,17 @@ _TYPE_MAP = {
     "<type 'numpy.float64'>": 'double',
 }
 
+_TYPE_PRIORITY = {
+    'bool': 1,
+    'char': 2,
+    'unsigned char': 2,
+    'int': 3,
+    'unsigned int': 3,
+    'half': 4,
+    'float': 5,
+    'double': 6
+}
+
 
 class AddressSpaceQualifier(object):
     def __init__(self, python_type):
@@ -20,6 +31,27 @@ class AddressSpaceQualifier(object):
         # depending) on large modules like NumPy.
         type_repr = repr(python_type)
         self.type_name = _TYPE_MAP.get(type_repr, 'float')
+
+    def priority(self):
+        return _TYPE_PRIORITY[self.type_name]
+
+    def __lt__(self, other):
+        return self.priority() < other.priority()
+
+    def __le__(self, other):
+        return self.priority() <= other.priority()
+
+    def __eq__(self, other):
+        return self.priority() == other.priority()
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __gt__(self, other):
+        return not self < other
+
+    def __ge__(self, other):
+        return not self <= other
 
 
 class NoQualifier(AddressSpaceQualifier):

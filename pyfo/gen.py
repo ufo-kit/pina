@@ -139,6 +139,37 @@ class ExprGen(BaseGen):
         self.add(')')
 
 
+class GenericVisitor(ast.NodeVisitor):
+    def generic_visit(self, node):
+        ast.NodeVisitor.generic_visit(self, node)
+
+
+def get_names(expr):
+    class Visitor(GenericVisitor):
+        def __init__(self):
+            self.names = []
+
+        def visit_Name(self, node):
+            self.names.append(node.id)
+
+    v = Visitor()
+    v.visit(expr)
+    return v.names
+
+
+def has_return_stmt(node):
+    class Visitor(GenericVisitor):
+        def __init__(self):
+            self.has_return = False
+
+        def visit_Return(self, node):
+            self.has_return = True
+
+    v = Visitor()
+    v.visit(node)
+    return v.has_return
+
+
 class StmtGen(BaseGen):
     def __init__(self, varc):
         super(StmtGen, self).__init__(varc)
@@ -194,22 +225,6 @@ def argument_names(args, has_output):
 
     if has_output:
         yield '_output'
-
-
-def has_return_stmt(node):
-    class Visitor(ast.NodeVisitor):
-        def __init__(self):
-            self.has_return = False
-
-        def generic_visit(self, node):
-            ast.NodeVisitor.generic_visit(self, node)
-
-        def visit_Return(self, node):
-            self.has_return = True
-
-    v = Visitor()
-    v.visit(node)
-    return v.has_return
 
 
 class FuncGen(ast.NodeVisitor):
