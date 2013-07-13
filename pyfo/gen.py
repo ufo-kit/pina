@@ -6,8 +6,9 @@ PYTHON_3 = sys.version_info >= (3, 0)
 
 import ast
 import inspect
+import functools
 
-from itertools import izip_longest
+from itertools import izip_longest, izip
 from .qualifiers import NoQualifier, Global
 
 
@@ -170,6 +171,12 @@ def has_return_stmt(node):
     return v.has_return
 
 
+def get_best_type(varc, names):
+    quals = (varc[x].qualifier for x in names)
+    best = functools.reduce(max, quals)
+    return best.type_name
+
+
 class StmtGen(BaseGen):
     def __init__(self, varc):
         super(StmtGen, self).__init__(varc)
@@ -182,7 +189,8 @@ class StmtGen(BaseGen):
         for target in node.targets:
             if isinstance(target, ast.Name):
                 if not target.id in self.varc:
-                    self.add('float ')
+                    names = get_names(node.value)
+                    self.add('{0} '.format(get_best_type(self.varc, names)))
 
                 location = get_var(self.varc, target.id).fragment()
                 val_expr = ExprGen(self.varc).fragment(node.value)
