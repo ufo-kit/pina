@@ -25,12 +25,19 @@ _TYPE_PRIORITY = {
 }
 
 
+def set_default_float_type(type_name):
+    _TYPE_MAP["<type 'float'>"] = type_name
+
+
 class AddressSpaceQualifier(object):
     def __init__(self, python_type):
         # Using a string representations frees us from importing (and
         # depending) on large modules like NumPy.
-        type_repr = repr(python_type)
-        self.type_name = _TYPE_MAP.get(type_repr, 'float')
+        self.type_repr = repr(python_type)
+
+    @property
+    def type_name(self):
+        return _TYPE_MAP.get(self.type_repr, 'float')
 
     def priority(self):
         return _TYPE_PRIORITY[self.type_name]
