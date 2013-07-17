@@ -5,6 +5,8 @@ _TYPE_MAP = {
     "<type 'str'>": 'char',
     "<type 'numpy.bool'>": 'bool',
     "<type 'numpy.int'>": 'int',
+    "<type 'numpy.int32'>": 'int',
+    "<type 'numpy.int64'>": 'long',
     "<type 'numpy.int8'>": 'char',
     "<type 'numpy.uint8'>": 'unsigned char',
     "<type 'numpy.float'>": 'double',
@@ -25,11 +27,16 @@ _TYPE_PRIORITY = {
 }
 
 
+def is_supported(type_name):
+    return type_name in _TYPE_MAP
+
+
 def set_default_float_type(type_name):
     _TYPE_MAP["<type 'float'>"] = type_name
 
 
 class AddressSpaceQualifier(object):
+
     def __init__(self, python_type):
         # Using a string representations frees us from importing (and
         # depending) on large modules like NumPy.
@@ -62,24 +69,28 @@ class AddressSpaceQualifier(object):
 
 
 class NoQualifier(AddressSpaceQualifier):
+
     def __init__(self, python_type):
         super(NoQualifier, self).__init__(python_type)
         self.cl_keyword = ''
 
 
 class Global(AddressSpaceQualifier):
+
     def __init__(self, python_type):
         super(Global, self).__init__(python_type)
         self.cl_keyword = '__global'
 
 
 class Constant(AddressSpaceQualifier):
+
     def __init__(self, python_type):
         super(Constant, self).__init__(python_type)
         self.cl_keyword = '__constant'
 
 
 class Local(AddressSpaceQualifier):
+
     def __init__(self, python_type):
         super(Local, self).__init__(python_type)
         self.cl_keyword = '__local'

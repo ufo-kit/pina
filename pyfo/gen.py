@@ -32,6 +32,7 @@ def _get_op_char(node):
 
 
 class Variable(object):
+
     def __init__(self, name, qualifier=None):
         self.name = name
         self.qualifier = qualifier if qualifier else NoQualifier(float)
@@ -83,6 +84,7 @@ class BaseGen(ast.NodeVisitor):
 
 
 class ExprGen(BaseGen):
+
     def __init__(self, varc):
         super(ExprGen, self).__init__(varc)
 
@@ -123,7 +125,8 @@ class ExprGen(BaseGen):
                 tup = node.slice.value.elts
                 x = ExprGen(self.varc).fragment(tup[0])
                 y = ExprGen(self.varc).fragment(tup[1])
-                self.add('[(_idy + ({0})) * _width + _idx + ({1})]'.format(y, x))
+                self.add(
+                    '[(_idy + ({0})) * _width + _idx + ({1})]'.format(y, x))
             else:
                 index = ExprGen(self.varc).fragment(node.slice.value)
                 self.add('[{0}]'.format(index))
@@ -141,12 +144,14 @@ class ExprGen(BaseGen):
 
 
 class GenericVisitor(ast.NodeVisitor):
+
     def generic_visit(self, node):
         ast.NodeVisitor.generic_visit(self, node)
 
 
 def get_names(expr):
     class Visitor(GenericVisitor):
+
         def __init__(self):
             self.names = []
 
@@ -160,6 +165,7 @@ def get_names(expr):
 
 def has_return_stmt(node):
     class Visitor(GenericVisitor):
+
         def __init__(self):
             self.has_return = False
 
@@ -178,6 +184,7 @@ def get_best_type(varc, names):
 
 
 class StmtGen(BaseGen):
+
     def __init__(self, varc):
         super(StmtGen, self).__init__(varc)
 
@@ -236,6 +243,7 @@ def argument_names(args, has_output):
 
 
 class FuncGen(ast.NodeVisitor):
+
     def __init__(self, arg_types):
         super(FuncGen, self).__init__()
         self.kernel = ''
@@ -264,7 +272,7 @@ class FuncGen(ast.NodeVisitor):
         self.kernel += '}'
 
 
-def make_kernel(func, arg_types=None):
+def make_kernel(func, arg_types=[]):
     source = inspect.getsource(func)
     tree = ast.parse(source)
     gen = FuncGen(arg_types)

@@ -1,5 +1,6 @@
-import types
 import inspect
+import collections
+import types
 from .gen import make_kernel
 from .qualifiers import *
 
@@ -17,7 +18,7 @@ def get_qualified_arg(arg):
     return NoQualifier(arg)
 
 
-def source(*args):
+def static(*args):
     def _source(func):
         qual_args = [get_qualified_arg(arg) for arg in args]
         return make_kernel(func, qual_args)
@@ -28,3 +29,28 @@ def source(*args):
         return make_kernel(args[0])
 
     return _source
+
+
+def _get_type_from_py(arg):
+    import numpy as np
+
+    def check_supported(type_name):
+        if not is_supported(type_name):
+            raise RuntimeError("Unsupported data type {0}".format(type_name))
+
+    if arg.__class__ == np.ndarray:
+        check_supported(repr(arg.dtype.type))
+        return Global(arg.dtype.type)
+    else:
+        check_supported(repr(arg.__class__))
+        return NoQualifier(arg.__class__)
+
+
+def invoked(func):
+    def _wrapper(*args):
+        if len(inspect.getargspec(func).args) != len(args):
+            raise RuntimeError("Wrong arguments number.")
+        qual_args = [_get_type_from_py(arg) for arg in args]
+        return make_kernel(func, qual_args)
+
+    return _wrapper
