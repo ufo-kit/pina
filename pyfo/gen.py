@@ -9,7 +9,7 @@ import inspect
 import functools
 
 from itertools import izip_longest, izip
-from .qualifiers import NoQualifier, Global
+from .qualifiers import NoQualifier, Global, is_double_default
 
 
 OP_MAP = {
@@ -261,6 +261,9 @@ class FuncGen(ast.NodeVisitor):
                                                         has_return))
 
         gen = StmtGen(varc)
+
+        if is_double_default():
+            self.kernel += '#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n'
 
         self.kernel += '__kernel void {0}({1})\n'.format(node.name, arg_list)
         self.kernel += '{\n'

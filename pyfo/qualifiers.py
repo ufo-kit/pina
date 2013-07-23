@@ -35,6 +35,10 @@ def set_default_float_type(type_name):
     _TYPE_MAP["<type 'float'>"] = type_name
 
 
+def is_double_default():
+    return _TYPE_MAP["<type 'float'>"] == 'double'
+
+
 class AddressSpaceQualifier(object):
 
     def __init__(self, python_type):
