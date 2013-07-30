@@ -248,17 +248,18 @@ class FuncGen(ast.NodeVisitor):
         super(FuncGen, self).__init__()
         self.kernel = ''
         self.arg_types = arg_types
+        self.has_return = False
 
     def visit_FunctionDef(self, node):
-        has_return = has_return_stmt(node)
+        self.has_return = has_return_stmt(node)
         varc = dict(type_args(node.args.args, self.arg_types))
 
-        if has_return:
+        if self.has_return:
             varc['_output'] = Variable('_output', Global(float))
 
         arg_list = ', '.join(get_var(varc, name).declaration()
                              for name in argument_names(node.args.args,
-                                                        has_return))
+                                                        self.has_return))
 
         gen = StmtGen(varc)
 
@@ -273,6 +274,17 @@ class FuncGen(ast.NodeVisitor):
         self.kernel += 'unsigned int _index = _idy * _width + _idx;\n'
         self.kernel += gen.fragment(node)
         self.kernel += '}'
+
+
+class Kernel(object):
+    def __init__(self, func, arg_types=[]):
+        source = inspect.getsource(func)
+        tree = ast.parse(source)
+        gen = FuncGen(arg_types)
+        gen.visit(tree)
+
+        self.source = gen.kernel
+        self.returns = gen.has_return
 
 
 def make_kernel(func, arg_types=[]):

@@ -31,7 +31,7 @@ def static(*args):
     return _source
 
 
-def _get_type_from_py(arg):
+def get_type_from_py(arg):
     import numpy as np
 
     def check_supported(type_name):
@@ -50,7 +50,7 @@ def invoked(func):
     def _wrapper(*args):
         if len(inspect.getargspec(func).args) != len(args):
             raise RuntimeError("Wrong arguments number.")
-        qual_args = [_get_type_from_py(arg) for arg in args]
+        qual_args = [get_type_from_py(arg) for arg in args]
         return make_kernel(func, qual_args)
 
     return _wrapper
