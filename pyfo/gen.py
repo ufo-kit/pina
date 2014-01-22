@@ -287,9 +287,51 @@ class Kernel(object):
         self.returns = gen.has_return
 
 
+def guess_arg_types(func):
+    class LvalueVisitor(ast.NodeVisitor):
+        def __init__(self, secondary):
+            self.secondary = secondary
+
+        def visit_Assign(self, node):
+            self.secondary.visit(node.value)
+
+    class ArrayAccessVisitor(ast.NodeVisitor):
+        def __init__(self):
+            self.names = []
+
+        def visit_Subscript(self, node):
+            self.names.append(node.value.id)
+
+    class ArgsVisitor(ast.NodeVisitor):
+        def __init__(self):
+            self.names = None
+
+        def visit_FunctionDef(self, node):
+            self.names = [arg.id for arg in node.args.args]
+
+    args = ArgsVisitor()
+    args.visit(func)
+    accesses = ArrayAccessVisitor()
+    LvalueVisitor(accesses).visit(func)
+
+    types = []
+
+    for arg in args.names:
+        if arg in accesses.names:
+            types.append(Global(float))
+        else:
+            types.append(None)
+
+    return types
+
+
 def make_kernel(func, arg_types=[]):
     source = inspect.getsource(func)
     tree = ast.parse(source)
+
+    if not arg_types:
+        arg_types = guess_arg_types(tree)
+
     gen = FuncGen(arg_types)
     gen.visit(tree)
     return gen.kernel
