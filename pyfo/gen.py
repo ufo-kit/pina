@@ -1,337 +1,156 @@
-#!/usr/bin/env python
-
-import sys
-
-PYTHON_3 = sys.version_info >= (3, 0)
-
-import ast
-import inspect
-import functools
-
-from itertools import izip_longest, izip
-from .qualifiers import NoQualifier, Global, is_double_default
+import parser
+import qualifiers
+from pycparser import c_generator, c_ast
 
 
-OP_MAP = {
-    ast.Add: '+',
-    ast.Sub: '-',
-    ast.Mult: '*',
-    ast.Div: '/',
-    ast.And: '&&',
-    ast.Or: '||',
-    ast.Lt: '<',
-    ast.LtE: '<=',
-    ast.Gt: '>',
-    ast.GtE: '>=',
-    ast.NotEq: '!=',
-}
+def work_item_index(dims=2):
+    """Build an expression to build the current work item index."""
+    left = c_ast.ID('get_global_id(1)')
+    right = c_ast.ID('get_global_size(0)')
+    a = c_ast.BinaryOp('*', left, right)
+    return c_ast.BinaryOp('+', a, c_ast.ID('get_global_id(0)'))
 
 
-def _get_op_char(node):
-    return OP_MAP[type(node)]
+def array_ref(name, subscript):
+    return c_ast.ArrayRef(c_ast.ID(name), c_ast.ID(subscript))
 
 
-class Variable(object):
-
-    def __init__(self, name, qualifier=None):
-        self.name = name
-        self.qualifier = qualifier if qualifier else NoQualifier(float)
-
-    def declaration(self):
-        asterisk = '' if isinstance(self.qualifier, NoQualifier) else '*'
-        return '{0} {1} {2}{3}'.format(self.qualifier.cl_keyword,
-                                       self.qualifier.type_name,
-                                       asterisk,
-                                       self.name)
-
-    def fragment(self, expr=None):
-        if isinstance(self.qualifier, NoQualifier):
-            return self.name
-
-        if expr:
-            return '{0}[{1}]'.format(self.name, expr.fragment())
-
-        return '{0}[_index]'.format(self.name)
+def ptr_decl(name, vtype, qualifiers):
+    """Create a pointer declaration"""
+    idtype = c_ast.IdentifierType([vtype])
+    typedecl = c_ast.TypeDecl(name, [], idtype)
+    ptrdecl = c_ast.PtrDecl([], typedecl)
+    return c_ast.Decl(name, None, None, None, qualifiers, ptrdecl, None, None)
 
 
-def get_var(d, name):
-    if not name in d:
-        d[name] = Variable(name, NoQualifier('float'))
-
-    return d[name]
+def local_decl(name, vtype, init=None):
+    typedecl =  c_ast.TypeDecl(name, [], c_ast.IdentifierType([vtype]))
+    return c_ast.Decl(name, None, None, None, None, typedecl, init, None)
 
 
-class BaseGen(ast.NodeVisitor):
+def find_statement(c_node, node_type):
+    """
+    Find all statements in *node* of *node_type* and return a list with tuples
+    containing (compound, statement, index).
+    """
+    result = []
 
-    indentation = ''
+    class Visitor(c_ast.NodeVisitor):
+        def visit_Compound(self, node):
+            for i, stmt in enumerate(node.block_items):
+                if isinstance(stmt, node_type):
+                    result.append((node, stmt, i))
 
-    def __init__(self, varc):
-        self.varc = varc
+            for _, c in node.children():
+                self.visit(c)
 
-    def fragment(self, node):
-        self._fragment = ''
-        self.visit(node)
-        return self._fragment
-
-    def add(self, fragment):
-        self._fragment += self.indentation + fragment
-
-    def indent(self):
-        self.indentation += '    '
-
-    def unindent(self):
-        self.indentation = self.indentation[:-4]
+    Visitor().visit(c_node)
+    return result
 
 
-class ExprGen(BaseGen):
+def find_type(c_node, node_type):
+    """Find all occurrences of *node_type* in the AST"""
+    result = []
 
-    def __init__(self, varc):
-        super(ExprGen, self).__init__(varc)
+    class Visitor(c_ast.NodeVisitor):
+        def generic_visit(self, node):
+            if isinstance(node, node_type):
+                result.append(node)
 
-    def visit_Name(self, node):
-        self.add(get_var(self.varc, node.id).fragment())
+            for _, c in node.children():
+                self.visit(c)
 
-    def visit_BinOp(self, node):
-        self.add(ExprGen(self.varc).fragment(node.left))
-        self.add(' {0} '.format(_get_op_char(node.op)))
-        self.add(ExprGen(self.varc).fragment(node.right))
-
-    def visit_BoolOp(self, node):
-        self.add(ExprGen(self.varc).fragment(node.values[0]))
-        self.add(' {0} '.format(_get_op_char(node.op)))
-        self.add(ExprGen(self.varc).fragment(node.values[1]))
-
-    def visit_Compare(self, node):
-        def gen_comparisons():
-            left = node.left
-
-            for op, comparator in zip(node.ops, node.comparators):
-                s = ExprGen(self.varc).fragment(left)
-                s += ' {0} '.format(_get_op_char(op))
-                s += ExprGen(self.varc).fragment(comparator)
-                left = comparator
-                yield s
-
-        self.add(' && '.join('({0})'.format(c) for c in gen_comparisons()))
-
-    def visit_Num(self, node):
-        self.add(str(node.n))
-
-    def visit_Subscript(self, node):
-        self.add('{0}'.format(node.value.id))
-
-        if isinstance(node.slice, ast.Index):
-            if isinstance(node.slice.value, ast.Tuple):
-                tup = node.slice.value.elts
-                x = ExprGen(self.varc).fragment(tup[0])
-                y = ExprGen(self.varc).fragment(tup[1])
-                self.add(
-                    '[(_idy + ({0})) * _width + _idx + ({1})]'.format(y, x))
-            else:
-                index = ExprGen(self.varc).fragment(node.slice.value)
-                self.add('[{0}]'.format(index))
-
-    def visit_IfExp(self, node):
-        self.add(ExprGen(self.varc).fragment(node.test))
-        self.add(' ?  {0}'.format(ExprGen(self.varc).fragment(node.body)))
-        self.add(' : {0};'.format(ExprGen(self.varc).fragment(node.orelse)))
-
-    def visit_Call(self, node):
-        self.add(node.func.id + '(')
-        self.add(', '.join(ExprGen(self.varc).fragment(arg)
-                           for arg in node.args))
-        self.add(')')
+    Visitor().visit(c_node)
+    return result
 
 
-class GenericVisitor(ast.NodeVisitor):
+def find_name(body, name):
+    result = []
 
-    def generic_visit(self, node):
-        ast.NodeVisitor.generic_visit(self, node)
-
-
-def get_names(expr):
-    class Visitor(GenericVisitor):
-
+    class Visitor(c_ast.NodeVisitor):
         def __init__(self):
-            self.names = []
+            self.found = None
 
-        def visit_Name(self, node):
-            self.names.append(node.id)
+        def visit_ID(self, node):
+            if node.name == name:
+                self.found = node
 
-    v = Visitor()
-    v.visit(expr)
-    return v.names
+        def generic_visit(self, node):
+            for _, c in node.children():
+                self.visit(c)
 
+                if self.found:
+                    result.append((node, self.found))
+                    self.found = None
 
-def has_return_stmt(node):
-    class Visitor(GenericVisitor):
+    for stmt in body.block_items:
+        Visitor().visit(stmt)
 
-        def __init__(self):
-            self.has_return = False
-
-        def visit_Return(self, node):
-            self.has_return = True
-
-    v = Visitor()
-    v.visit(node)
-    return v.has_return
+    return result
 
 
-def get_best_type(varc, names):
-    quals = (varc[x].qualifier for x in names)
-    best = functools.reduce(max, quals)
-    return best.type_name
+def replace(expr, needle, replacement):
+    """Replaces a *name* ID in *expr* by *node*"""
+    def check_and_replace(node):
+        return replacement if node == needle else node
+
+    class Visitor(c_ast.NodeVisitor):
+        def visit_Assignment(self, node):
+            node.lvalue = check_and_replace(node.lvalue)
+            node.rvalue = check_and_replace(node.rvalue)
+
+        def visit_BinaryOp(self, node):
+            node.left = check_and_replace(node.left)
+            node.right = check_and_replace(node.right)
+
+    Visitor().visit(expr)
 
 
-class StmtGen(BaseGen):
+def kernel(func, arg_types=[]):
+    """Build OpenCL kernel source string from *func*"""
+    fdef = parser.parse(func)
+    params = fdef.decl.type.args.params
 
-    def __init__(self, varc):
-        super(StmtGen, self).__init__(varc)
+    # add __kernel qualifier to signature
+    fdef.decl.type.type.quals = ['__kernel']
 
-    def visit_Return(self, node):
-        expr = ExprGen(self.varc).fragment(node)
-        self.add('_output[_index] = {0};\n'.format(expr))
+    # assign arg types
+    mapped = list(enumerate(zip(params, arg_types)))
 
-    def visit_Assign(self, node):
-        for target in node.targets:
-            if isinstance(target, ast.Name):
-                if not target.id in self.varc:
-                    names = get_names(node.value)
-                    self.add('{0} '.format(get_best_type(self.varc, names)))
+    for i, (node, qualifier) in mapped:
+        params[i] = ptr_decl(node.name, 'float', [qualifier.cl_keyword])
 
-                location = get_var(self.varc, target.id).fragment()
-                val_expr = ExprGen(self.varc).fragment(node.value)
-                self.add('{0} = {1};\n'.format(location, val_expr))
+    # create work item indices
+    fdef.body.block_items.insert(0, local_decl('idx', 'int', work_item_index()))
 
-    def visit_AugAssign(self, node):
-        self.add(self.varc.get_var(node.target.id, None))
-        self.add(' {0}= '.format(_get_op_char(node.op)))
-        self.add(ExprGen(self.varc).fragment(node.value))
-        self.add(';\n')
+    # create variables for intermediate results
+    localvars = []
+    assignments = find_type(fdef.body, c_ast.Assignment)
 
-    def visit_If(self, node):
-        def visit_body(body_node):
-            self.indent()
-            for stmt in body_node:
-                self.add(StmtGen(self.varc).fragment(stmt))
-            self.unindent()
+    for each in assignments:
+        if not each.lvalue.name in localvars:
+            localvars.append(each.lvalue.name)
 
-        test = ExprGen(self.varc).fragment(node.test)
-        self.add('if (%s) {\n' % test)
-        visit_body(node.body)
-        self.add('}\n')
+    for var in localvars:
+        fdef.body.block_items.insert(0, local_decl(var, 'float'))
 
-        if len(node.orelse) > 0:
-            self.add('else {\n')
-            visit_body(node.orelse)
-            self.add('}\n')
+    # replace global occurences with array access
+    globalvars = [p.name for p in params]
+
+    for name in globalvars:
+        for expr, node in find_name(fdef.body, name):
+            read_access = array_ref(name, 'idx')
+            replace(expr, node, read_access)
 
 
-def type_args(args, arg_types):
-    for arg, arg_type in izip_longest(args, arg_types, fillvalue=None):
-        if arg:
-            name = arg.arg if PYTHON_3 else arg.id
-            yield (name, Variable(name, arg_type))
+    # replace return with memory write
+    lvalue = array_ref('out', 'idx')
 
+    for compound, stmt, i in find_statement(fdef, c_ast.Return):
+        compound.block_items[i] = c_ast.Assignment('=', lvalue, stmt.expr)
 
-def argument_names(args, has_output):
-    for arg in args:
-        yield arg.arg if PYTHON_3 else arg.id
+    # add out argument
+    fdef.decl.type.args.params.append(ptr_decl('out', 'float', ['__global']))
 
-    if has_output:
-        yield '_output'
-
-
-class FuncGen(ast.NodeVisitor):
-
-    def __init__(self, arg_types):
-        super(FuncGen, self).__init__()
-        self.kernel = ''
-        self.arg_types = arg_types
-        self.has_return = False
-
-    def visit_FunctionDef(self, node):
-        self.has_return = has_return_stmt(node)
-        varc = dict(type_args(node.args.args, self.arg_types))
-
-        if self.has_return:
-            varc['_output'] = Variable('_output', Global(float))
-
-        arg_list = ', '.join(get_var(varc, name).declaration()
-                             for name in argument_names(node.args.args,
-                                                        self.has_return))
-
-        gen = StmtGen(varc)
-
-        if is_double_default():
-            self.kernel += '#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n'
-
-        self.kernel += '__kernel void {0}({1})\n'.format(node.name, arg_list)
-        self.kernel += '{\n'
-        self.kernel += 'unsigned int _width = get_global_size(0);\n'
-        self.kernel += 'unsigned int _idx = get_global_id(0);\n'
-        self.kernel += 'unsigned int _idy = get_global_id(1);\n'
-        self.kernel += 'unsigned int _index = _idy * _width + _idx;\n'
-        self.kernel += gen.fragment(node)
-        self.kernel += '}'
-
-
-class Kernel(object):
-    def __init__(self, func, arg_types=[]):
-        source = inspect.getsource(func)
-        tree = ast.parse(source)
-        gen = FuncGen(arg_types)
-        gen.visit(tree)
-
-        self.source = gen.kernel
-        self.returns = gen.has_return
-
-
-def guess_arg_types(func):
-    class LvalueVisitor(ast.NodeVisitor):
-        def __init__(self, secondary):
-            self.secondary = secondary
-
-        def visit_Assign(self, node):
-            self.secondary.visit(node.value)
-
-    class ArrayAccessVisitor(ast.NodeVisitor):
-        def __init__(self):
-            self.names = []
-
-        def visit_Subscript(self, node):
-            self.names.append(node.value.id)
-
-    class ArgsVisitor(ast.NodeVisitor):
-        def __init__(self):
-            self.names = None
-
-        def visit_FunctionDef(self, node):
-            self.names = [arg.id for arg in node.args.args]
-
-    args = ArgsVisitor()
-    args.visit(func)
-    accesses = ArrayAccessVisitor()
-    LvalueVisitor(accesses).visit(func)
-
-    types = []
-
-    for arg in args.names:
-        if arg in accesses.names:
-            types.append(Global(float))
-        else:
-            types.append(None)
-
-    return types
-
-
-def make_kernel(func, arg_types=[]):
-    source = inspect.getsource(func)
-    tree = ast.parse(source)
-
-    if not arg_types:
-        arg_types = guess_arg_types(tree)
-
-    gen = FuncGen(arg_types)
-    gen.visit(tree)
-    return gen.kernel
+    generator = c_generator.CGenerator()
+    return generator.visit(fdef)

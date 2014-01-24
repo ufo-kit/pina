@@ -1,8 +1,48 @@
+import ast
 import inspect
 import collections
 import types
-from .gen import make_kernel
+from .gen import kernel
 from .qualifiers import *
+
+
+
+def guess_arg_types(func):
+    class LvalueVisitor(ast.NodeVisitor):
+        def __init__(self, secondary):
+            self.secondary = secondary
+
+        def visit_Assign(self, node):
+            self.secondary.visit(node.value)
+
+    class ArrayAccessVisitor(ast.NodeVisitor):
+        def __init__(self):
+            self.names = []
+
+        def visit_Subscript(self, node):
+            self.names.append(node.value.id)
+
+    class ArgsVisitor(ast.NodeVisitor):
+        def __init__(self):
+            self.names = None
+
+        def visit_FunctionDef(self, node):
+            self.names = [arg.id for arg in node.args.args]
+
+    args = ArgsVisitor()
+    args.visit(func)
+    accesses = ArrayAccessVisitor()
+    LvalueVisitor(accesses).visit(func)
+
+    types = []
+
+    for arg in args.names:
+        if arg in accesses.names:
+            types.append(Global(float))
+        else:
+            types.append(None)
+
+    return types
 
 
 def get_qualified_arg(arg):
@@ -21,12 +61,12 @@ def get_qualified_arg(arg):
 def static(*args):
     def _source(func):
         qual_args = [get_qualified_arg(arg) for arg in args]
-        return make_kernel(func, qual_args)
+        return kernel(func, qual_args)
 
     # The decorator was instantiated without any arguments. In this case
     # args[0] is the decorated function!
     if len(args) == 1 and isinstance(args[0], types.FunctionType):
-        return make_kernel(args[0])
+        return kernel(args[0])
 
     return _source
 
