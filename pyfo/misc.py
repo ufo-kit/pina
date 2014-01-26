@@ -3,48 +3,11 @@ import inspect
 import types
 from .gen import kernel
 from .qualifiers import *
+from .cl import BufferSpec, ExecutionEnvironment
 
 
 
-def guess_arg_types(func):
-    class LvalueVisitor(ast.NodeVisitor):
-        def __init__(self, secondary):
-            self.secondary = secondary
-
-        def visit_Assign(self, node):
-            self.secondary.visit(node.value)
-
-    class ArrayAccessVisitor(ast.NodeVisitor):
-        def __init__(self):
-            self.names = []
-
-        def visit_Subscript(self, node):
-            self.names.append(node.value.id)
-
-    class ArgsVisitor(ast.NodeVisitor):
-        def __init__(self):
-            self.names = None
-
-        def visit_FunctionDef(self, node):
-            self.names = [arg.id for arg in node.args.args]
-
-    args = ArgsVisitor()
-    args.visit(func)
-    accesses = ArrayAccessVisitor()
-    LvalueVisitor(accesses).visit(func)
-
-    types = []
-
-    for arg in args.names:
-        if arg in accesses.names:
-            types.append(Global(float))
-        else:
-            types.append(None)
-
-    return types
-
-
-def get_qualified_arg(arg):
+def qualified_arg(arg):
     if isinstance(arg, AddressSpaceQualifier):
         return arg
 
@@ -59,41 +22,54 @@ def get_qualified_arg(arg):
 
 def static(*args):
     def _source(func):
-        qual_args = [get_qualified_arg(arg) for arg in args]
-        return kernel(func, qual_args)
+        arg_names = inspect.getargspec(func).args
+        specs = {}
+
+        for name, arg in zip(arg_names, args):
+            spec = BufferSpec(name)
+            spec.qualifier = qualified_arg(arg)
+            specs[name] = spec
+
+        return kernel(func, specs)
 
     # The decorator was instantiated without any arguments. In this case
     # args[0] is the decorated function!
     if len(args) == 1 and isinstance(args[0], types.FunctionType):
-        return kernel(args[0])
+        return kernel(args[0], {})
 
     return _source
 
 
-def get_type_from_py(arg):
+def arg_spec(arg, name):
     import numpy as np
 
     def check_supported(type_name):
         if not is_supported(type_name):
             raise RuntimeError("Unsupported data type {0}".format(type_name))
 
+    spec = BufferSpec(name)
+
     if arg.__class__ == np.ndarray:
         check_supported(repr(arg.dtype.type))
-        return Global(arg.dtype.type)
+        spec.size = arg.nbytes
+        spec.qualifier = Global(arg.dtype.type)
     else:
         check_supported(repr(arg.__class__))
-        return NoQualifier(arg.__class__)
+        spec.qualifier = NoQualifier(arg.__class__)
+
+    return spec
 
 
-def jit(func):
+def jit(func, env=None):
     def _wrapper(*args):
-        num_expected = len(inspect.getargspec(func).args)
+        arg_names = inspect.getargspec(func).args
+        num_expected = len(arg_names)
 
         if num_expected != len(args):
             msg = "{}() takes exactly {} arguments ({} given)"
             raise TypeError(msg.format(func.__name__, num_expected, len(args)))
 
-        types = [get_type_from_py(a) for a in args]
-        return kernel(func, types)
+        specs = {name: arg_spec(a, name) for a, name in zip(args, arg_names)}
+        return kernel(func, specs, env=env)
 
     return _wrapper

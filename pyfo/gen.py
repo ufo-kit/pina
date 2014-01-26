@@ -109,7 +109,57 @@ def replace(expr, needle, replacement):
     Visitor().visit(expr)
 
 
-def kernel(func, arg_types=[]):
+def find_read_only(body, params):
+    names = [p.name for p in params]
+    print names
+
+    class Visitor(c_ast.NodeVisitor):
+        def __init__(self):
+            self.found = None
+
+        def visit_Assignment(self, node):
+            for _, c in node.lvalue.children():
+                self.found = None
+                self.visit(c)
+
+                if self.found:
+                    names.remove(self.found)
+
+        def visit_ID(self, node):
+            if node.name in names:
+                self.found = node.name
+
+    Visitor().visit(body)
+    return [p for p in params if p.name in names]
+
+
+def constantify(fdef, specs, env):
+    # replace small read-only with constant memory
+    params = fdef.decl.type.args.params
+    readonly_params = find_read_only(fdef.body, params)
+
+    constant_size = env.MAX_CONSTANT_SIZE
+    constant_args = env.MAX_CONSTANT_ARGS
+
+    for p in readonly_params:
+        if constant_args == 0:
+            break
+
+        if p.name in specs:
+            spec = specs[p.name]
+
+            if spec.size and spec.size < constant_size:
+                constant_size -= spec.size
+                constant_args -= 1
+
+                p.funcspec = ['__constant']
+
+
+def optimize_depending_on_env(fdef, specs, env):
+    constantify(fdef, specs, env)
+
+
+def kernel(func, specs, env=None):
     """Build OpenCL kernel source string from *func*"""
     fdef = parser.parse(func)
     params = fdef.decl.type.args.params
@@ -118,28 +168,28 @@ def kernel(func, arg_types=[]):
     fdef.decl.type.type.quals = ['__kernel']
 
     # assign arg types
-    mapped = list(enumerate(zip(params, arg_types)))
-
-    for i, (node, qualifier) in mapped:
-        params[i] = ptr_decl(node.name, 'float', [qualifier.cl_keyword])
+    for i, p in enumerate(params):
+        if p.name in specs:
+            spec = specs[p.name].qualifier
+            params[i] = ptr_decl(p.name, 'float', [spec.cl_keyword])
 
     # create work item indices
     fdef.body.block_items.insert(0, local_decl('idx', 'int', work_item_index()))
 
     # create variables for intermediate results
+    globalvars = [p.name for p in params]
     localvars = []
     assignments = find_type(fdef.body, c_ast.Assignment)
 
     for each in assignments:
-        if not each.lvalue.name in localvars:
+        name = each.lvalue.name
+        if not name in localvars and not name in globalvars:
             localvars.append(each.lvalue.name)
 
     for var in localvars:
         fdef.body.block_items.insert(0, local_decl(var, 'float'))
 
     # replace global occurences with array access
-    globalvars = [p.name for p in params]
-
     for name in globalvars:
         for expr, node in find_name(fdef.body, name):
             read_access = array_ref(name, 'idx')
@@ -153,6 +203,10 @@ def kernel(func, arg_types=[]):
 
     # add out argument
     fdef.decl.type.args.params.append(ptr_decl('out', 'float', ['__global']))
+
+    # optimization
+    if env:
+        optimize_depending_on_env(fdef, specs, env)
 
     generator = c_generator.CGenerator()
     return generator.visit(fdef)
