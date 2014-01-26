@@ -75,6 +75,13 @@ class PythonToC(ast.NodeVisitor):
         start = c_ast.BinaryOp('+', elements[0], elements[1])
         self.result = add_ops(elements[2:], start)
 
+    def visit_Call(self, node):
+        # TODO: check if call to an OpenCL function and leave it ...
+        args = [python_to_c_ast(arg) for arg in node.args]
+        self.result = c_ast.FuncCall(c_ast.ID(node.func.id), c_ast.ExprList(args))
+
+        # ... otherwise we will flatten later
+
 
 def python_to_c_ast(py_node):
     if isinstance(py_node, list):
