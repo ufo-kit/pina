@@ -94,3 +94,17 @@ def invoked(func):
         return make_kernel(func, qual_args)
 
     return _wrapper
+
+
+def jit(func):
+    def _wrapper(*args):
+        num_expected = len(inspect.getargspec(func).args)
+
+        if num_expected != len(args):
+            msg = "{}() takes exactly {} arguments ({} given)"
+            raise TypeError(msg.format(func.__name__, num_expected, len(args)))
+
+        types = [get_type_from_py(a) for a in args]
+        return kernel(func, types)
+
+    return _wrapper

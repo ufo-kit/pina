@@ -142,7 +142,6 @@ def kernel(func, arg_types=[]):
             read_access = array_ref(name, 'idx')
             replace(expr, node, read_access)
 
-
     # replace return with memory write
     lvalue = array_ref('out', 'idx')
 
