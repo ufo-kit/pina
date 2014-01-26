@@ -103,6 +103,9 @@ def replace(expr, needle, replacement):
             node.left = check_and_replace(node.left)
             node.right = check_and_replace(node.right)
 
+        def visit_Return(self, node):
+            node.expr = check_and_replace(node.expr)
+
     Visitor().visit(expr)
 
 

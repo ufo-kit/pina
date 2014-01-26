@@ -1,6 +1,5 @@
 import ast
 import inspect
-import collections
 import types
 from .gen import kernel
 from .qualifiers import *
@@ -84,16 +83,6 @@ def get_type_from_py(arg):
     else:
         check_supported(repr(arg.__class__))
         return NoQualifier(arg.__class__)
-
-
-def invoked(func):
-    def _wrapper(*args):
-        if len(inspect.getargspec(func).args) != len(args):
-            raise RuntimeError("Wrong arguments number.")
-        qual_args = [get_type_from_py(arg) for arg in args]
-        return make_kernel(func, qual_args)
-
-    return _wrapper
 
 
 def jit(func):
