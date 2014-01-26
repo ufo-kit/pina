@@ -111,7 +111,6 @@ def replace(expr, needle, replacement):
 
 def find_read_only(body, params):
     names = [p.name for p in params]
-    print names
 
     class Visitor(c_ast.NodeVisitor):
         def __init__(self):

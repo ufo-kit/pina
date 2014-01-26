@@ -62,6 +62,19 @@ class PythonToC(ast.NodeVisitor):
         rvalue =  python_to_c_ast(node.value)
         self.result = c_ast.Assignment(op + '=', lvalue, rvalue)
 
+    def visit_Tuple(self, node):
+        elements = [python_to_c_ast(e) for e in node.elts]
+
+        def add_ops(lst, op):
+            if not lst:
+                return op
+
+            op = c_ast.BinaryOp('+', op, lst[0])
+            return add_ops(lst[1:], op)
+
+        start = c_ast.BinaryOp('+', elements[0], elements[1])
+        self.result = add_ops(elements[2:], start)
+
 
 def python_to_c_ast(py_node):
     if isinstance(py_node, list):
