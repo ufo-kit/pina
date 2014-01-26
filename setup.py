@@ -12,4 +12,5 @@ setup(
     packages=find_packages(exclude=['*.tests']),
     description="Python-to-OpenCL source compiler",
     long_description="Python-to-OpenCL source compiler",
+    install_requires=['pycparser']
 )
