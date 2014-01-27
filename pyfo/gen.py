@@ -106,6 +106,10 @@ def replace(expr, needle, replacement):
         def visit_Return(self, node):
             node.expr = check_and_replace(node.expr)
 
+        def visit_ExprList(self, node):
+            for i, expr in enumerate(node.exprs):
+                node.exprs[i] = check_and_replace(node.exprs[i])
+
     Visitor().visit(expr)
 
 
