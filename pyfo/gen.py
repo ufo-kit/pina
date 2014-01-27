@@ -140,7 +140,7 @@ def find_read_only(body, params):
 
 
 def constantify(fdef, specs, env):
-    # replace small read-only with constant memory
+    """Replace small read-only with constant memory"""
     params = fdef.decl.type.args.params
     readonly_params = find_read_only(fdef.body, params)
 
@@ -161,7 +161,51 @@ def constantify(fdef, specs, env):
                 p.funcspec = ['__constant']
 
 
+def substitute_mad(fdef, specs, env):
+    """Substitute "a * b + c" expressions  with "mad(a, b, c)"."""
+    result = []
+
+    class MulVisitor(c_ast.NodeVisitor):
+        def __init__(self):
+            self.left = None
+            self.right = None
+
+        def visit_BinaryOp(self, node):
+            if node.op == '*':
+                self.left = node.left
+                self.right = node.right
+
+    class AddVisitor(c_ast.NodeVisitor):
+        def __init__(self):
+            self.operand_a = None
+            self.operand_b = None
+            self.operand_c = None
+
+        def visit_BinaryOp(self, node):
+            if node.op in ('+', '-'):
+                v = MulVisitor()
+                v.visit(node.left)
+
+                if v.left and v.right:
+                    right = node.right
+
+                    if node.op == '-':
+                        # invert c to be able to use mad()
+                        right = c_ast.UnaryOp('-', right)
+
+                    result.append((node, v.left, v.right, right))
+
+    AddVisitor().visit(fdef.body)
+
+    for node, a, b, c in result:
+        # TODO: check that a, b and c are of some float type
+        args = c_ast.ExprList([a, b, c])
+        mad = c_ast.FuncCall(c_ast.ID('mad'), args)
+        replace(fdef, node, mad)
+
+
 def optimize_depending_on_env(fdef, specs, env):
+    substitute_mad(fdef, specs, env)
     constantify(fdef, specs, env)
 
 
