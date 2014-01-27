@@ -10,6 +10,10 @@ class PythonToC(ast.NodeVisitor):
     def visit_Return(self, node):
         self.result = c_ast.Return(python_to_c_ast(node.value))
 
+    def visit_UnaryOp(self, node):
+        self.result = c_ast.UnaryOp(python_to_c_ast(node.op),
+                                    python_to_c_ast(node.operand))
+
     def visit_BinOp(self, node):
         self.result = c_ast.BinaryOp(python_to_c_ast(node.op),
                                      python_to_c_ast(node.left),
@@ -33,7 +37,8 @@ class PythonToC(ast.NodeVisitor):
         ops = {ast.Add: '+', ast.Sub: '-', ast.Mult: '*', ast.Div: '/',
                ast.Gt: '>', ast.GtE: '>=', ast.Lt: '<', ast.LtE: '<=',
                ast.NotEq: '!=',
-               ast.And: '&&', ast.Or: '||'}
+               ast.And: '&&', ast.Or: '||',
+               ast.Invert: '~', ast.Not: '!', ast.UAdd: '+', ast.USub: '-'}
 
         if type(node) in ops:
             self.result = ops[type(node)]

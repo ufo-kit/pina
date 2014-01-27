@@ -99,6 +99,9 @@ def replace(expr, needle, replacement):
             node.lvalue = check_and_replace(node.lvalue)
             node.rvalue = check_and_replace(node.rvalue)
 
+        def visit_UnaryOp(self, node):
+            node.expr = check_and_replace(node.expr)
+
         def visit_BinaryOp(self, node):
             node.left = check_and_replace(node.left)
             node.right = check_and_replace(node.right)
