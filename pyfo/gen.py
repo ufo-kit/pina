@@ -15,16 +15,22 @@ def array_ref(name, subscript):
     return c_ast.ArrayRef(c_ast.ID(name), c_ast.ID(subscript))
 
 
-def ptr_decl(name, vtype, qualifiers):
+def decl(name, typename, init):
+    idtype = c_ast.IdentifierType([typename])
+    typedecl = c_ast.TypeDecl(name, [], idtype)
+    return c_ast.Decl(name, None, None, None, None, typedecl, init, None)
+
+
+def ptr_decl(name, typename, qualifiers):
     """Create a pointer declaration"""
-    idtype = c_ast.IdentifierType([vtype])
+    idtype = c_ast.IdentifierType([typename])
     typedecl = c_ast.TypeDecl(name, [], idtype)
     ptrdecl = c_ast.PtrDecl([], typedecl)
     return c_ast.Decl(name, None, None, None, qualifiers, ptrdecl, None, None)
 
 
-def local_decl(name, vtype, init=None):
-    typedecl =  c_ast.TypeDecl(name, [], c_ast.IdentifierType([vtype]))
+def local_decl(name, typename, init=None):
+    typedecl =  c_ast.TypeDecl(name, [], c_ast.IdentifierType([typename]))
     return c_ast.Decl(name, None, None, None, None, typedecl, init, None)
 
 
@@ -176,11 +182,6 @@ def substitute_mad(fdef, specs, env):
                 self.right = node.right
 
     class AddVisitor(c_ast.NodeVisitor):
-        def __init__(self):
-            self.operand_a = None
-            self.operand_b = None
-            self.operand_c = None
-
         def visit_BinaryOp(self, node):
             if node.op in ('+', '-'):
                 v = MulVisitor()
@@ -207,6 +208,25 @@ def substitute_mad(fdef, specs, env):
 def optimize_depending_on_env(fdef, specs, env):
     substitute_mad(fdef, specs, env)
     constantify(fdef, specs, env)
+
+
+def fix_for_loops(fdef, specs):
+    loops = [l for l in find_type(fdef.body, c_ast.For) if hasattr(l, '_extra')]
+
+    for loop in loops:
+        it, mem = loop._extra
+
+        if mem in specs:
+            it_var = c_ast.ID(it + '__it')
+            n_it = specs[mem].size / 4
+            loop.init = decl(it_var.name, 'int', c_ast.Constant('int', '0'))
+            loop.cond = c_ast.BinaryOp('<', it_var, c_ast.Constant('int', str(n_it)))
+
+            update = c_ast.ExprList([c_ast.BinaryOp('+=', it_var, c_ast.Constant('int', '1')),
+                                     c_ast.Assignment('=', c_ast.ID(it), array_ref(mem, it_var.name))])
+            loop.next = update
+        else:
+            raise TypeError("Cannot infer iterator type")
 
 
 def kernel(func, specs, env=None):
@@ -238,6 +258,9 @@ def kernel(func, specs, env=None):
 
     for var in localvars:
         fdef.body.block_items.insert(0, local_decl(var, 'float'))
+
+    # fix for loops
+    fix_for_loops(fdef, specs)
 
     # replace global occurences with array access
     for name in globalvars:

@@ -3,6 +3,12 @@ import inspect
 from pycparser import c_ast
 
 
+def create_decl(name, typename, init):
+    idtype = c_ast.IdentifierType([typename])
+    typedecl = c_ast.TypeDecl(name, [], idtype)
+    return c_ast.Decl(name, None, None, None, None, typedecl, init, None)
+
+
 class PythonToC(ast.NodeVisitor):
     def __init__(self):
         self.result = None
@@ -24,6 +30,14 @@ class PythonToC(ast.NodeVisitor):
         self.result = c_ast.If(python_to_c_ast(node.test),
                                python_to_c_ast(node.body),
                                else_branch)
+
+    def visit_For(self, node):
+        if isinstance(node.iter, ast.Name):
+            # We are iterating over a named iterable which we will convert to
+            # an array iteration
+            body = python_to_c_ast(node.body)
+            self.result = c_ast.For(None, None, None, body)
+            setattr(self.result, '_extra', (node.target.id, node.iter.id))
 
     def visit_Compare(self, node):
         self.result = c_ast.BinaryOp(python_to_c_ast(node.ops[0]),
@@ -105,6 +119,7 @@ def parse(func):
     """
     source = inspect.getsource(func)
     tree = ast.parse(source)
+
     node = tree.body[0]
 
     # Convert statements in the body
