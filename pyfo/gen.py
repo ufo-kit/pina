@@ -110,6 +110,20 @@ def replace_return_statements(fdef):
     fdef.decl.type.args.params.append(ptr_decl('out', 'float', ['__global']))
 
 
+def replace_constants(fdef):
+    consts = {
+        'E': '2.7182818284590452353602874713526624977572470937000',
+        'LN2': '0.69314718055994530941723212145817656807550013436026',
+        'LN10': '2.3025850929940456840179914546843642076011014886288',
+        'PI': '3.1415926535897932384626433832795028841971693993751',
+        'PI_2': '1.5707963267948966192313216916397514420985846996876',
+    }
+
+    for symbol, value in consts.items():
+        for expr, node in pyfo.mod.find_name(fdef.body, symbol):
+            pyfo.mod.replace(expr, node, c_ast.ID(value))
+
+
 def kernel(func, specs, env=None):
     """Build OpenCL kernel source string from *func*"""
     fdef = parser.parse(func)
@@ -120,9 +134,13 @@ def kernel(func, specs, env=None):
     replace_global_accesses(fdef)
     replace_return_statements(fdef)
 
-    # if env:
-    # pyfo.opt.level1(fdef, specs, env)
-    pyfo.opt.level2(fdef, specs, env)
+    if env:
+        pyfo.opt.level1(fdef, specs, env)
+        pyfo.opt.level2(fdef, specs, env)
+
+    # we replace constants after optimization passes, because the symbols might be
+    # removed by the optimization
+    replace_constants(fdef)
 
     generator = c_generator.CGenerator()
     return generator.visit(fdef)
