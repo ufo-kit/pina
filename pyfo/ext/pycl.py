@@ -1,14 +1,15 @@
+import time
 import pyopencl as cl
 import numpy as np
 
 import pyfo
 import pyfo.cl
-# from ..misc import get_type_from_py
 
 
 context = cl.create_some_context(False)
 queue = cl.CommandQueue(context)
 buffers = {}
+exec_times = []
 
 env = pyfo.cl.ExecutionEnvironment()
 env.MAX_CONSTANT_SIZE = context.devices[0].max_constant_buffer_size
@@ -62,9 +63,11 @@ class JustInTimeCall(object):
 
         kargs = [self.buffers[id(each)] for each in arrays]
         kargs.append(out_buffer)
-        kernel(queue, arrays[0].shape, None, *kargs)
 
+        start = time.time()
+        kernel(queue, arrays[0].shape, None, *kargs)
         cl.enqueue_copy(queue, self.output, out_buffer)
+        exec_times.append((self.name, time.time() - start))
         return self.output
 
 
