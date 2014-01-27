@@ -120,9 +120,9 @@ def kernel(func, specs, env=None):
     replace_global_accesses(fdef)
     replace_return_statements(fdef)
 
-    if env:
-        pyfo.opt.level1(fdef, specs, env)
-        pyfo.opt.level2(fdef, specs, env)
+    # if env:
+    # pyfo.opt.level1(fdef, specs, env)
+    pyfo.opt.level2(fdef, specs, env)
 
     generator = c_generator.CGenerator()
     return generator.visit(fdef)

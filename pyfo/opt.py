@@ -7,8 +7,8 @@ def constantify(fdef, specs, env):
     params = fdef.decl.type.args.params
     readonly_params = pyfo.mod.find_read_only(fdef.body, params)
 
-    constant_size = 64000#env.MAX_CONSTANT_SIZE
-    constant_args = 10#env.MAX_CONSTANT_ARGS
+    constant_size = env.MAX_CONSTANT_SIZE
+    constant_args = env.MAX_CONSTANT_ARGS
 
     for p in readonly_params:
         if constant_args == 0:

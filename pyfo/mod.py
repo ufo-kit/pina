@@ -10,20 +10,32 @@ def replace(expr, needle, replacement):
         def visit_Assignment(self, node):
             node.lvalue = check_and_replace(node.lvalue)
             node.rvalue = check_and_replace(node.rvalue)
+            replace(node.lvalue, needle, replacement)
+            replace(node.rvalue, needle, replacement)
 
         def visit_UnaryOp(self, node):
             node.expr = check_and_replace(node.expr)
+            replace(node.expr, needle, replacement)
 
         def visit_BinaryOp(self, node):
             node.left = check_and_replace(node.left)
             node.right = check_and_replace(node.right)
+            replace(node.left, needle, replacement)
+            replace(node.right, needle, replacement)
 
         def visit_Return(self, node):
             node.expr = check_and_replace(node.expr)
+            replace(node.expr, needle, replacement)
 
         def visit_ExprList(self, node):
             for i, expr in enumerate(node.exprs):
                 node.exprs[i] = check_and_replace(node.exprs[i])
+                replace(node.exprs[i], needle, replacement)
+
+        def visit_FuncCall(self, node):
+            for i, expr, in enumerate(node.args.exprs):
+                node.args.exprs[i] = check_and_replace(node.args.exprs[i])
+                replace(node.args.exprs[i], needle, replacement)
 
     Visitor().visit(expr)
 
