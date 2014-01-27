@@ -21,9 +21,14 @@ class PythonToC(ast.NodeVisitor):
                                     python_to_c_ast(node.operand))
 
     def visit_BinOp(self, node):
-        self.result = c_ast.BinaryOp(python_to_c_ast(node.op),
-                                     python_to_c_ast(node.left),
-                                     python_to_c_ast(node.right))
+        if isinstance(node.op, ast.Pow):
+            self.result = c_ast.FuncCall(c_ast.ID('pow'),
+                                         c_ast.ExprList([python_to_c_ast(node.left),
+                                                         python_to_c_ast(node.right)]))
+        else:
+            self.result = c_ast.BinaryOp(python_to_c_ast(node.op),
+                                         python_to_c_ast(node.left),
+                                         python_to_c_ast(node.right))
 
     def visit_If(self, node):
         else_branch = None if not node.orelse else python_to_c_ast(node.orelse)
