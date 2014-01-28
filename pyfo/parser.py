@@ -59,21 +59,17 @@ class PythonToC(ast.NodeVisitor):
             # Mark this for-loop to be processed once input data is known
             setattr(self.result, '_extra', (node.target.id, node.iter.id))
         elif isinstance(node.iter, ast.Call) and node.iter.func.id == 'range':
-            try:
-                var = node.target.id
-                args = [str(arg.n) for arg in node.iter.args]
-                frm = '0' if len(args) == 1 else args[0]
-                to = args[0] if len(args) == 1 else args[1]
-                step = '1' if len(args) <= 2 else args[2]
+            var = node.target.id
+            args = [python_to_c_ast(arg) for arg in node.iter.args]
+            frm = c_ast.Constant('int', '0') if len(args) == 1 else args[0]
+            to = args[0] if len(args) == 1 else args[1]
+            step = c_ast.Constant('int', '1') if len(args) <= 2 else args[2]
 
-                init = create_decl(var, 'int', c_ast.Constant('int', frm))
-                cond = c_ast.BinaryOp('<', c_ast.ID(var), c_ast.Constant('int', to))
-                update = c_ast.ExprList([c_ast.BinaryOp('+=', c_ast.ID(var), c_ast.Constant('int', step))])
+            init = create_decl(var, 'int', frm)
+            cond = c_ast.BinaryOp('<', c_ast.ID(var), to)
+            update = c_ast.ExprList([c_ast.BinaryOp('+=', c_ast.ID(var), step)])
 
-                self.result = c_ast.For(init, cond, update, python_to_c_ast(node.body))
-            except AttributeError:
-                raise TypeError('Only integer constants allowed in range()')
-
+            self.result = c_ast.For(init, cond, update, python_to_c_ast(node.body))
 
     def visit_Compare(self, node):
         self.result = c_ast.BinaryOp(python_to_c_ast(node.ops[0]),
