@@ -76,9 +76,9 @@ def replace_global_accesses(fdef):
     """Replace all reads and writes on global variabls with array accesses."""
 
     for name in global_vars(fdef):
-        for expr, node in pyfo.mod.find_name(fdef.body, name):
+        for node in pyfo.mod.find_name(fdef.body, name):
             read_access = array_ref(name, 'idx')
-            pyfo.mod.replace(expr, node, read_access)
+            pyfo.mod.replace(fdef.body, node, read_access)
 
 
 def fix_local_accesses(fdef):
@@ -103,8 +103,9 @@ def replace_return_statements(fdef):
     """Turn all return statements into writes to a global 'out' buffer."""
     lvalue = array_ref('out', 'idx')
 
-    for compound, stmt, i in pyfo.mod.find_statement(fdef, c_ast.Return):
-        compound.block_items[i] = c_ast.Assignment('=', lvalue, stmt.expr)
+    for stmt in pyfo.mod.find_type(fdef.body, c_ast.Return):
+        assignment = c_ast.Assignment('=', array_ref('out', 'idx'), stmt.expr)
+        pyfo.mod.replace(fdef.body, stmt, assignment)
 
     # add out argument
     fdef.decl.type.args.params.append(ptr_decl('out', 'float', ['__global']))
@@ -120,8 +121,8 @@ def replace_constants(fdef):
     }
 
     for symbol, value in consts.items():
-        for expr, node in pyfo.mod.find_name(fdef.body, symbol):
-            pyfo.mod.replace(expr, node, c_ast.ID(value))
+        for node in pyfo.mod.find_name(fdef.body, symbol):
+            pyfo.mod.replace(fdef.body, node, c_ast.ID(value))
 
 
 def kernel(func, specs, env=None):
