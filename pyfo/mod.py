@@ -40,6 +40,25 @@ def replace(expr, needle, replacement):
     Visitor().visit(expr)
 
 
+def find(node, cond):
+    """
+    Find nodes in *node* that satisfy *cond*, a callable receiving a single
+    node.
+    """
+    result = []
+
+    class Visitor(c_ast.NodeVisitor):
+        def generic_visit(self, node):
+            if cond(node):
+                result.append(node)
+
+            for _, c in node.children():
+                result.extend(find(c, cond))
+
+    Visitor().visit(node)
+    return result
+
+
 def find_read_only(body, params):
     names = [p.name for p in params]
 

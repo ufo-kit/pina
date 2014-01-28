@@ -2,14 +2,15 @@ import pyfo.mod
 from pycparser import c_ast
 
 
-class MulVisitor(c_ast.NodeVisitor):
-    def __init__(self):
+class OpVisitor(c_ast.NodeVisitor):
+    def __init__(self, op):
         self.op = None
         self.left = None
         self.right = None
+        self._op = op
 
     def visit_BinaryOp(self, node):
-        if node.op == '*':
+        if node.op == self._op:
             self.op = node
             self.left = node.left
             self.right = node.right
@@ -40,14 +41,14 @@ def constantify(fdef, specs, env):
                 p.funcspec = ['__constant']
 
 
-def substitute_mad(fdef, specs, env):
+def substitute_mad(fdef):
     """Substitute "a * b + c" expressions  with "mad(a, b, c)"."""
     result = []
 
     class AddVisitor(c_ast.NodeVisitor):
         def visit_BinaryOp(self, node):
             if node.op in ('+', '-'):
-                v = MulVisitor()
+                v = OpVisitor('*')
                 v.visit(node.left)
 
                 if v.left and v.right:
@@ -68,13 +69,14 @@ def substitute_mad(fdef, specs, env):
         pyfo.mod.replace(fdef, node, mad)
 
 
-def substitute_pi_funcs(fdef, specs, env):
+def is_pi(node):
+    return isinstance(node, c_ast.ID) and node.name == 'PI'
+
+
+def substitute_pi_funcs(fdef):
     """Substitute "sin/cos/tan(x * pi)" calls with sinpi/cospi/tanpi(x)"""
     funcs = ('sin', 'cos', 'tan')
     result = []
-
-    def is_pi(node):
-        return isinstance(node, c_ast.ID) and node.name == 'PI'
 
     class FuncVisitor(c_ast.NodeVisitor):
         def visit_FuncCall(self, node):
@@ -82,7 +84,7 @@ def substitute_pi_funcs(fdef, specs, env):
 
             if name in funcs:
                 arg = node.args.exprs[0]
-                v = MulVisitor()
+                v = OpVisitor('*')
                 v.visit(arg)
 
                 if is_pi(v.left):
@@ -97,11 +99,32 @@ def substitute_pi_funcs(fdef, specs, env):
         call.name = c_ast.ID(name + 'pi')
 
 
+def substitute_arcus_funcs(fdef):
+    funcs = ('acos', 'asin', 'atan', 'atan2')
+    result = []
+
+    def is_func(node):
+        return isinstance(node, c_ast.FuncCall) and node.name.name in funcs
+
+    def is_eligible(node):
+        if not isinstance(node, c_ast.BinaryOp):
+            return False
+
+        return (is_pi(node.left) and is_func(node.right)) or \
+               (is_pi(node.right) and is_func(node.left))
+
+    for node in pyfo.mod.find(fdef.body, is_eligible):
+        call = node.left if isinstance(node.left, c_ast.FuncCall) else node.right
+        call.name.name += 'pi'
+        pyfo.mod.replace(fdef.body, node, call)
+
+
 def level1(fdef, specs, env):
     constantify(fdef, specs, env)
 
 
 def level2(fdef, specs, env):
     """Optimizations that might affect the result."""
-    substitute_mad(fdef, specs, env)
-    substitute_pi_funcs(fdef, specs, env)
+    substitute_mad(fdef)
+    substitute_pi_funcs(fdef)
+    substitute_arcus_funcs(fdef)
