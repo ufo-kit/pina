@@ -13,6 +13,19 @@ class PythonToC(ast.NodeVisitor):
     def __init__(self):
         self.result = None
 
+    def generic_visit(self, node):
+        ops = {ast.Add: '+', ast.Sub: '-', ast.Mult: '*', ast.Div: '/',
+               ast.Gt: '>', ast.GtE: '>=', ast.Lt: '<', ast.LtE: '<=',
+               ast.NotEq: '!=',
+               ast.And: '&&', ast.Or: '||',
+               ast.Invert: '~', ast.Not: '!', ast.UAdd: '+', ast.USub: '-'}
+
+        if type(node) in ops:
+            self.result = ops[type(node)]
+        else:
+            for _, c in node.children():
+                self.visit(c)
+
     def visit_Return(self, node):
         self.result = c_ast.Return(python_to_c_ast(node.value))
 
@@ -42,7 +55,25 @@ class PythonToC(ast.NodeVisitor):
             # an array iteration
             body = python_to_c_ast(node.body)
             self.result = c_ast.For(None, None, None, body)
+
+            # Mark this for-loop to be processed once input data is known
             setattr(self.result, '_extra', (node.target.id, node.iter.id))
+        elif isinstance(node.iter, ast.Call) and node.iter.func.id == 'range':
+            try:
+                var = node.target.id
+                args = [str(arg.n) for arg in node.iter.args]
+                frm = '0' if len(args) == 1 else args[0]
+                to = args[0] if len(args) == 1 else args[1]
+                step = '1' if len(args) <= 2 else args[2]
+
+                init = create_decl(var, 'int', c_ast.Constant('int', frm))
+                cond = c_ast.BinaryOp('<', c_ast.ID(var), c_ast.Constant('int', to))
+                update = c_ast.ExprList([c_ast.BinaryOp('+=', c_ast.ID(var), c_ast.Constant('int', step))])
+
+                self.result = c_ast.For(init, cond, update, python_to_c_ast(node.body))
+            except AttributeError:
+                raise TypeError('Only integer constants allowed in range()')
+
 
     def visit_Compare(self, node):
         self.result = c_ast.BinaryOp(python_to_c_ast(node.ops[0]),
@@ -51,19 +82,6 @@ class PythonToC(ast.NodeVisitor):
 
     def visit_Name(self, node):
         self.result = c_ast.ID(node.id)
-
-    def generic_visit(self, node):
-        ops = {ast.Add: '+', ast.Sub: '-', ast.Mult: '*', ast.Div: '/',
-               ast.Gt: '>', ast.GtE: '>=', ast.Lt: '<', ast.LtE: '<=',
-               ast.NotEq: '!=',
-               ast.And: '&&', ast.Or: '||',
-               ast.Invert: '~', ast.Not: '!', ast.UAdd: '+', ast.USub: '-'}
-
-        if type(node) in ops:
-            self.result = ops[type(node)]
-        else:
-            for _, c in node.children():
-                self.visit(c)
 
     def visit_Num(self, node):
         self.result = c_ast.Constant('int', str(node.n))
