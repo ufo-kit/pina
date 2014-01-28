@@ -42,6 +42,12 @@ def replace(expr, needle, replacement):
                 node.block_items[i] = check_and_replace(item)
                 replace(node.block_items[i], needle, replacement)
 
+        def visit_ParamList(self, node):
+            for i, item in enumerate(node.params):
+                node.params[i] = check_and_replace(item)
+                replace(node.params[i], needle, replacement)
+
+
     Visitor().visit(expr)
 
 

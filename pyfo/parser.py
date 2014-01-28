@@ -120,6 +120,15 @@ class PythonToC(ast.NodeVisitor):
 
         # ... otherwise we will flatten later
 
+    def visit_FunctionDef(self, node):
+        params = [python_to_c_ast(arg) for arg in node.args.args]
+        rtype = c_ast.IdentifierType(['void'])
+        tdecl = c_ast.TypeDecl(node.name, ['__kernel'], rtype)
+        ftype = c_ast.FuncDecl(c_ast.ParamList(params), tdecl)
+        decl = c_ast.Decl(node.name, None, None, None, ftype, None, None)
+        body = python_to_c_ast(node.body)
+        self.result = c_ast.FuncDef(decl, None, body)
+
 
 def python_to_c_ast(py_node):
     if isinstance(py_node, list):
@@ -138,18 +147,4 @@ def parse(func):
     """
     source = inspect.getsource(func)
     tree = ast.parse(source)
-
-    node = tree.body[0]
-
-    # Convert statements in the body
-    stmts = [python_to_c_ast(stmt) for stmt in node.body]
-    body = c_ast.Compound(stmts) 
-
-    # Build function declaration
-    c_args = [python_to_c_ast(arg) for arg in node.args.args]
-    tdecl = c_ast.TypeDecl(func.__name__, None, c_ast.IdentifierType(['void']))
-    fdecl = c_ast.FuncDecl(c_ast.ParamList(c_args), tdecl)
-    decl = c_ast.Decl(func.__name__, None, None, None, None, fdecl, None, None)
-    fdef = c_ast.FuncDef(decl, None, body, None)
-
-    return fdef
+    return python_to_c_ast(tree.body[0])

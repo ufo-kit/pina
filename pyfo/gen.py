@@ -26,26 +26,23 @@ def decl(name, typename, init):
 def ptr_decl(name, typename, qualifiers):
     """Create a pointer declaration"""
     idtype = c_ast.IdentifierType([typename])
-    typedecl = c_ast.TypeDecl(name, [], idtype)
-    ptrdecl = c_ast.PtrDecl([], typedecl)
-    return c_ast.Decl(name, None, None, None, qualifiers, ptrdecl, None, None)
+    typedecl = c_ast.TypeDecl(name, None, idtype)
+    ptrdecl = c_ast.PtrDecl(None, typedecl)
+    return c_ast.Decl(name, qualifiers, None, None, ptrdecl, None, None)
 
 
 def local_decl(name, typename, init=None):
     typedecl =  c_ast.TypeDecl(name, [], c_ast.IdentifierType([typename]))
-    return c_ast.Decl(name, None, None, None, None, typedecl, init, None)
+    return c_ast.Decl(name, None, None, None, typedecl, init, None)
 
 
 def fix_signature(fdef, specs):
     """Add necessary qualifiers to the function signature."""
-    fdef.decl.type.type.quals = ['__kernel']
+    params = [p for p in fdef.decl.type.args.params if p.name in specs]
 
-    params = fdef.decl.type.args.params
-
-    for i, p in enumerate(params):
-        if p.name in specs:
-            spec = specs[p.name].qualifier
-            params[i] = ptr_decl(p.name, 'float', [spec.cl_keyword])
+    for p in params:
+        decl = ptr_decl(p.name, specs[p.name].qualifier.cl_keyword + ' float', None)
+        pyfo.mod.replace(fdef.decl, p, decl)
 
 
 def fix_for_loops(fdef, specs):

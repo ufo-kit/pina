@@ -92,6 +92,9 @@ def substitute_pi_funcs(fdef):
                 elif is_pi(v.right):
                     result.append((name, node, v.op, v.left))
 
+            for _, c in node.children():
+                self.visit(c)
+
     FuncVisitor().visit(fdef.body)
 
     for name, call, pi_op, replacement in result:
