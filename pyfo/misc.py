@@ -60,16 +60,27 @@ def arg_spec(arg, name):
     return spec
 
 
-def jit(func, env=None):
-    def _wrapper(*args):
-        arg_names = inspect.getargspec(func).args
-        num_expected = len(arg_names)
+class jit(object):
+    def __init__(self, *args, **kwargs):
+        self.env = kwargs.get('env', None)
+        self.func = args[0] if args else None
 
-        if num_expected != len(args):
-            msg = "{}() takes exactly {} arguments ({} given)"
-            raise TypeError(msg.format(func.__name__, num_expected, len(args)))
+    def __call__(self, *cargs):
+        if not self.func:
+            self.func = cargs[0]
 
-        specs = {name: arg_spec(a, name) for a, name in zip(args, arg_names)}
-        return kernel(func, specs, env=env)
+        def _wrapper(*args):
+            arg_names = inspect.getargspec(self.func).args
+            num_expected = len(arg_names)
 
-    return _wrapper
+            if num_expected != len(args):
+                msg = "{}() takes exactly {} arguments ({} given)"
+                raise TypeError(msg.format(self.func.__name__, num_expected, len(args)))
+
+            specs = {name: arg_spec(a, name) for a, name in zip(args, arg_names)}
+            return kernel(self.func, specs, env=self.env)
+
+        if not isinstance(cargs[0], types.FunctionType):
+            return _wrapper(*cargs)
+
+        return _wrapper
