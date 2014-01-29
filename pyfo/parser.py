@@ -9,6 +9,19 @@ def create_decl(name, typename, init):
     return c_ast.Decl(name, None, None, None, None, typedecl, init, None)
 
 
+def constant(name):
+    """
+    Check if *name* is a known constant and return an equivalent
+    c_ast.Constant(). If it is unknown, return None.
+    """
+    known = ('pi', 'e', 'ln2', 'ln10')
+
+    if name in known:
+        return c_ast.Constant('float', name)
+
+    return None
+
+
 class PythonToC(ast.NodeVisitor):
     def __init__(self):
         self.result = None
@@ -115,7 +128,10 @@ class PythonToC(ast.NodeVisitor):
 
     def visit_Attribute(self, node):
         # strip off attribute accesses
-        self.result = c_ast.ID(node.attr)
+        self.result = constant(node.attr)
+
+        if not self.result:
+            self.result = c_ast.ID(node.attr)
 
     def visit_Call(self, node):
         # TODO: check if call to an OpenCL function and leave it ...

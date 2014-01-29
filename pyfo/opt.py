@@ -70,7 +70,7 @@ def substitute_mad(stmt):
 
 
 def is_pi(node):
-    return isinstance(node, c_ast.ID) and node.name == 'pi'
+    return isinstance(node, c_ast.Constant) and node.value == 'pi'
 
 
 def substitute_pi_funcs(fdef):

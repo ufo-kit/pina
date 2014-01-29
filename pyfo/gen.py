@@ -98,16 +98,18 @@ def replace_return_statements(fdef):
 
 def replace_constants(fdef):
     consts = {
-        'e': '2.7182818284590452353602874713526624977572470937000',
-        'ln2': '0.69314718055994530941723212145817656807550013436026',
+        'e':    '2.7182818284590452353602874713526624977572470937000',
+        'ln2':  '0.6931471805599453094172321214581765680755001343602',
         'ln10': '2.3025850929940456840179914546843642076011014886288',
-        'pi': '3.1415926535897932384626433832795028841971693993751',
+        'pi':   '3.1415926535897932384626433832795028841971693993751',
         'pi_2': '1.5707963267948966192313216916397514420985846996876',
     }
 
-    for symbol, value in consts.items():
-        for node in pyfo.cast.find_name(fdef.body, symbol):
-            pyfo.cast.replace(fdef.body, node, c_ast.ID(value))
+    def is_constant(node):
+        return isinstance(node, c_ast.Constant) and node.value in consts
+
+    for node in pyfo.cast.find(fdef.body, is_constant):
+        pyfo.cast.replace(fdef.body, node, c_ast.ID(consts[node.value]))
 
 
 def ast(func, specs, env=None):
