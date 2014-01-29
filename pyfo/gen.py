@@ -20,7 +20,7 @@ def array_ref(name, subscript):
 def decl(name, typename, init):
     idtype = c_ast.IdentifierType([typename])
     typedecl = c_ast.TypeDecl(name, [], idtype)
-    return c_ast.Decl(name, None, None, None, None, typedecl, init, None)
+    return c_ast.Decl(name, None, None, None, typedecl, init, None)
 
 
 def ptr_decl(name, typename, qualifiers):
@@ -41,8 +41,14 @@ def fix_signature(fdef, specs):
     params = [p for p in fdef.decl.type.args.params if p.name in specs]
 
     for p in params:
-        decl = ptr_decl(p.name, specs[p.name].qualifier.cl_keyword + ' float', None)
-        pyfo.mod.replace(fdef.decl, p, decl)
+        spec = specs[p.name]
+
+        if isinstance(spec.qualifier, qualifiers.NoQualifier):
+            d = decl(p.name, 'float', None)
+        else:
+            d = ptr_decl(p.name, spec.qualifier.cl_keyword + ' float', None)
+
+        pyfo.mod.replace(fdef.decl, p, d)
 
 
 def fix_for_loops(fdef, specs):
@@ -122,8 +128,7 @@ def replace_constants(fdef):
             pyfo.mod.replace(fdef.body, node, c_ast.ID(value))
 
 
-def kernel(func, specs, env=None):
-    """Build OpenCL kernel source string from *func*"""
+def ast(func, specs, env=None):
     fdef = parser.parse(func)
 
     fix_signature(fdef, specs)
@@ -139,6 +144,10 @@ def kernel(func, specs, env=None):
     # we replace constants after optimization passes, because the symbols might be
     # removed by the optimization
     replace_constants(fdef)
+    return fdef
 
+
+def kernel(func, specs, env=None):
+    """Build OpenCL kernel source string from *func*"""
     generator = c_generator.CGenerator()
-    return generator.visit(fdef)
+    return generator.visit(ast(func, specs, env))
