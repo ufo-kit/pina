@@ -90,7 +90,10 @@ class PythonToC(ast.NodeVisitor):
                                      python_to_c_ast(node.comparators[0]))
 
     def visit_Name(self, node):
-        self.result = c_ast.ID(node.id)
+        self.result = constant(node.id)
+
+        if not self.result:
+            self.result = c_ast.ID(node.id)
 
     def visit_Num(self, node):
         self.result = c_ast.Constant('int', str(node.n))

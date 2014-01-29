@@ -11,7 +11,7 @@ env = ExecutionEnvironment()
 
 @jit(env=env, ast=True)
 def k_cospi(x, y):
-    return cos(x * PI)
+    return cos(x * pi)
 
 
 @jit(env=env, ast=True)
