@@ -1,7 +1,7 @@
 import ast
 import inspect
 import types
-from .gen import kernel
+from .gen import kernel, ast
 from .qualifiers import *
 from .cl import BufferSpec, ExecutionEnvironment
 
@@ -63,6 +63,7 @@ def arg_spec(arg, name):
 class jit(object):
     def __init__(self, *args, **kwargs):
         self.env = kwargs.get('env', None)
+        self.return_ast = kwargs.get('ast', False)
         self.func = args[0] if args else None
 
     def __call__(self, *cargs):
@@ -78,7 +79,12 @@ class jit(object):
                 raise TypeError(msg.format(self.func.__name__, num_expected, len(args)))
 
             specs = {name: arg_spec(a, name) for a, name in zip(args, arg_names)}
-            return kernel(self.func, specs, env=self.env)
+
+            if not self.return_ast:
+                return kernel(self.func, specs, env=self.env)
+
+            return ast(self.func, specs, env=self.env)
+
 
         if not isinstance(cargs[0], types.FunctionType):
             return _wrapper(*cargs)
