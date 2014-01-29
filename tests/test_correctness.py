@@ -8,6 +8,10 @@ def k_add(x, y):
     return x + y
 
 
+def k_scale(s, x):
+    return s * x
+
+
 def k_cos(x):
     return np.cos(x)
 
@@ -33,6 +37,9 @@ class TestBasics(object):
 
     def test_add(self):
         compare(k_add, self.a, self.b)
+
+    def test_scale(self):
+        compare(k_scale, 2.0, self.b)
 
     def test_cos(self):
         compare(k_cos, self.a)

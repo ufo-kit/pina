@@ -24,47 +24,48 @@ class JustInTimeCall(object):
     def __init__(self, func, work_size):
         self.func = pyfo.jit(func, env=env)
         self.name = func.__name__
-        self.kernels = {}
         self.buffers = {}
+        self.kernel = None
         self.output = None
 
     def __call__(self, *args):
         key = tuple(id(arg) for arg in args)
 
-        if key in self.kernels:
-            kernel = self.kernels[key]
-        else:
+        if not self.kernel:
             source = self.func(*args)
             program = cl.Program(context, source).build()
-            kernel = getattr(program, self.name)
-            self.kernels[key] = kernel
+            self.kernel = getattr(program, self.name)
 
-        arrays = np_arrays(args)
+        kargs = []
 
-        # copy arguments
-        for each in arrays:
-            if id(each) in self.buffers:
-                buf = self.buffers[id(each)]
-                cl.enqueue_copy(queue, buf, each)
+        for arg in args:
+            if isinstance(arg, np.ndarray):
+                if id(arg) in self.buffers:
+                    buf = self.buffers[id(arg)]
+                    cl.enqueue_copy(queue, buf, arg)
+                else:
+                    flags = cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR
+                    buf = cl.Buffer(context, flags, arg.nbytes, hostbuf=arg)
+                    self.buffers[id(arg)] = buf
+
+                kargs.append(buf)
             else:
-                flags = cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR
-                buf = cl.Buffer(context, flags, each.nbytes, hostbuf=each)
-                self.buffers[id(each)] = buf
+                kargs.append(np.float32(arg))
 
-        # Create output if necessary
+        # TODO: use user-supplied information if necessary
+        first_np_array = [a for a in args if isinstance(a, np.ndarray)][0]
+
         if self.output is None:
-            # TODO: use user-supplied information if necessary
-            self.output = np.empty_like(arrays[0])
+            self.output = np.empty_like(first_np_array)
             out_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY, self.output.nbytes)
             self.buffers[id(self.output)] = out_buffer
         else:
             out_buffer = self.buffers[id(self.output)]
 
-        kargs = [self.buffers[id(each)] for each in arrays]
         kargs.append(out_buffer)
 
         start = time.time()
-        kernel(queue, arrays[0].shape, None, *kargs)
+        self.kernel(queue, first_np_array.shape, None, *kargs)
         cl.enqueue_copy(queue, self.output, out_buffer)
         exec_times.append((self.name, time.time() - start))
         return self.output
