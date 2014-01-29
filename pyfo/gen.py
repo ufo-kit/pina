@@ -40,14 +40,30 @@ def fix_for_loops(fdef, specs):
             raise TypeError("Cannot infer iterator type")
 
 
-
 def replace_global_accesses(fdef):
     """Replace all reads and writes on global variabls with array accesses."""
-
     for name in pyfo.cast.find_global_names(fdef):
+        # Replace simple identifiers
         for node in pyfo.cast.find_name(fdef.body, name):
             read_access = pyfo.cast.ArrayRef(name, 'idx')
             pyfo.cast.replace(fdef.body, node, read_access)
+
+        # Replace already indexed accesses
+        def is_valid(node):
+            return isinstance(node, c_ast.ArrayRef) and node.name.name == name
+
+        def is_constant_subscript(node):
+            return is_valid(node) and isinstance(node.subscript, c_ast.Constant)
+
+        def is_unary_op_subscript(node):
+            return is_valid(node) and isinstance(node.subscript, c_ast.UnaryOp)
+
+        for node in pyfo.cast.find(fdef.body, is_constant_subscript):
+            node.subscript = c_ast.BinaryOp('+', c_ast.ID('idx'), node.subscript)
+
+        for node in pyfo.cast.find(fdef.body, is_unary_op_subscript):
+            subscript = node.subscript
+            node.subscript = c_ast.BinaryOp(subscript.op, c_ast.ID('idx'), subscript.expr)
 
 
 def fix_local_accesses(fdef):

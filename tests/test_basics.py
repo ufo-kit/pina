@@ -14,6 +14,11 @@ def k_scalar(s, x):
     return s * x
 
 
+@jit(ast=False)
+def k_relative(x):
+    return 0.5 * x[-1] + x[0] + 0.5 * x[+1]
+
+
 class TestBasics(object):
     def setUp(self):
         self.a = np.ones((512, 512))
@@ -26,3 +31,6 @@ class TestBasics(object):
         assert(isinstance(s[0].type, c_ast.TypeDecl))
         assert(isinstance(s[0].type.type, c_ast.IdentifierType))
 
+    def test_relative(self):
+        ast = k_relative(self.a)
+        print ast
