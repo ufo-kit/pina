@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import numpy as np
-import pyfo.mod
+import pyfo.cast
 from pyfo import jit, ExecutionEnvironment
 from pycparser import c_ast
 
@@ -26,12 +26,12 @@ class TestOptimizations(object):
 
     def test_cospi(self):
         ast = k_cospi(self.a, self.b)
-        r = pyfo.mod.find_type(ast, c_ast.FuncCall)
+        r = pyfo.cast.find_type(ast, c_ast.FuncCall)
         assert len(r) == 1
         assert r[0].name.name == 'cospi'
 
     def test_mad(self):
         ast = k_mad(self.a, self.b)
-        r = pyfo.mod.find_type(ast, c_ast.FuncCall)
+        r = pyfo.cast.find_type(ast, c_ast.FuncCall)
         assert len(r) == 1
         assert r[0].name.name == 'mad'

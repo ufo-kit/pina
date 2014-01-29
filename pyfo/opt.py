@@ -1,4 +1,4 @@
-import pyfo.mod
+import pyfo.cast
 from pycparser import c_ast
 
 
@@ -22,7 +22,7 @@ class OpVisitor(c_ast.NodeVisitor):
 def constantify(fdef, specs, env):
     """Replace small read-only with constant memory"""
     params = fdef.decl.type.args.params
-    readonly_params = pyfo.mod.find_read_only(fdef.body, params)
+    readonly_params = pyfo.cast.find_read_only(fdef.body, params)
 
     constant_size = env.MAX_CONSTANT_SIZE
     constant_args = env.MAX_CONSTANT_ARGS
@@ -66,7 +66,7 @@ def substitute_mad(fdef):
         # TODO: check that a, b and c are of some float type
         args = c_ast.ExprList([a, b, c])
         mad = c_ast.FuncCall(c_ast.ID('mad'), args)
-        pyfo.mod.replace(fdef, node, mad)
+        pyfo.cast.replace(fdef, node, mad)
 
 
 def is_pi(node):
@@ -98,7 +98,7 @@ def substitute_pi_funcs(fdef):
     FuncVisitor().visit(fdef.body)
 
     for name, call, pi_op, replacement in result:
-        pyfo.mod.replace(call, pi_op, replacement)
+        pyfo.cast.replace(call, pi_op, replacement)
         call.name = c_ast.ID(name + 'pi')
 
 
@@ -116,10 +116,10 @@ def substitute_arcus_funcs(fdef):
         return (is_pi(node.left) and is_func(node.right)) or \
                (is_pi(node.right) and is_func(node.left))
 
-    for node in pyfo.mod.find(fdef.body, is_eligible):
+    for node in pyfo.cast.find(fdef.body, is_eligible):
         call = node.left if isinstance(node.left, c_ast.FuncCall) else node.right
         call.name.name += 'pi'
-        pyfo.mod.replace(fdef.body, node, call)
+        pyfo.cast.replace(fdef.body, node, call)
 
 
 def level1(fdef, specs, env):

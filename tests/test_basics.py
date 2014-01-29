@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import numpy as np
-import pyfo.mod
+import pyfo.cast
 from pyfo import jit, ExecutionEnvironment
 from pycparser import c_ast
 
@@ -21,7 +21,7 @@ class TestBasics(object):
 
     def test_scalar(self):
         ast = k_scalar(3.5, self.a)
-        s = pyfo.mod.find(ast, lambda node: isinstance(node, c_ast.Decl) and node.name == 's')
+        s = pyfo.cast.find(ast, lambda node: isinstance(node, c_ast.Decl) and node.name == 's')
         assert(len(s) == 1)
         assert(isinstance(s[0].type, c_ast.TypeDecl))
         assert(isinstance(s[0].type.type, c_ast.IdentifierType))

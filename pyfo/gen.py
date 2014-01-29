@@ -1,7 +1,7 @@
 import parser
 import qualifiers
 import pyfo.opt
-import pyfo.mod
+import pyfo.cast
 from pycparser import c_generator, c_ast
 
 
@@ -48,12 +48,12 @@ def fix_signature(fdef, specs):
         else:
             d = ptr_decl(p.name, spec.qualifier.cl_keyword + ' float', None)
 
-        pyfo.mod.replace(fdef.decl, p, d)
+        pyfo.cast.replace(fdef.decl, p, d)
 
 
 def fix_for_loops(fdef, specs):
     """Instantiate a real for loop now that we know sizes of data."""
-    loops = [l for l in pyfo.mod.find_type(fdef.body, c_ast.For) if hasattr(l, '_extra')]
+    loops = [l for l in pyfo.cast.find_type(fdef.body, c_ast.For) if hasattr(l, '_extra')]
 
     for loop in loops:
         it, mem = loop._extra
@@ -79,16 +79,16 @@ def replace_global_accesses(fdef):
     """Replace all reads and writes on global variabls with array accesses."""
 
     for name in global_vars(fdef):
-        for node in pyfo.mod.find_name(fdef.body, name):
+        for node in pyfo.cast.find_name(fdef.body, name):
             read_access = array_ref(name, 'idx')
-            pyfo.mod.replace(fdef.body, node, read_access)
+            pyfo.cast.replace(fdef.body, node, read_access)
 
 
 def fix_local_accesses(fdef):
     """Add a declaration for all referenced local variables"""
     localvars = []
     globalvars = list(global_vars(fdef))
-    assignments = pyfo.mod.find_type(fdef.body, c_ast.Assignment)
+    assignments = pyfo.cast.find_type(fdef.body, c_ast.Assignment)
 
     for each in assignments:
         name = each.lvalue.name
@@ -106,9 +106,9 @@ def replace_return_statements(fdef):
     """Turn all return statements into writes to a global 'out' buffer."""
     lvalue = array_ref('out', 'idx')
 
-    for stmt in pyfo.mod.find_type(fdef.body, c_ast.Return):
+    for stmt in pyfo.cast.find_type(fdef.body, c_ast.Return):
         assignment = c_ast.Assignment('=', array_ref('out', 'idx'), stmt.expr)
-        pyfo.mod.replace(fdef.body, stmt, assignment)
+        pyfo.cast.replace(fdef.body, stmt, assignment)
 
     # add out argument
     fdef.decl.type.args.params.append(ptr_decl('out', 'float', ['__global']))
@@ -124,8 +124,8 @@ def replace_constants(fdef):
     }
 
     for symbol, value in consts.items():
-        for node in pyfo.mod.find_name(fdef.body, symbol):
-            pyfo.mod.replace(fdef.body, node, c_ast.ID(value))
+        for node in pyfo.cast.find_name(fdef.body, symbol):
+            pyfo.cast.replace(fdef.body, node, c_ast.ID(value))
 
 
 def ast(func, specs, env=None):
