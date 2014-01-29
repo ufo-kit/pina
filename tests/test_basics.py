@@ -16,7 +16,7 @@ def k_scalar(s, x):
 
 @jit(ast=False)
 def k_relative(x):
-    return 0.5 * x[-1] + x[0] + 0.5 * x[+1]
+    return 0.5 * x[-1] + 0.5 * x[+1]
 
 
 class TestBasics(object):
@@ -33,4 +33,3 @@ class TestBasics(object):
 
     def test_relative(self):
         ast = k_relative(self.a)
-        print ast

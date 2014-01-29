@@ -41,7 +41,7 @@ def constantify(fdef, specs, env):
                 p.funcspec = ['__constant']
 
 
-def substitute_mad(fdef):
+def substitute_mad(stmt):
     """Substitute "a * b + c" expressions  with "mad(a, b, c)"."""
     result = []
 
@@ -58,15 +58,15 @@ def substitute_mad(fdef):
                         # invert c to be able to use mad()
                         right = c_ast.UnaryOp('-', right)
 
-                    result.append((node, v.left, v.right, right))
+                    result.append((v.op, v.left, v.right, right))
 
-    AddVisitor().visit(fdef.body)
+    AddVisitor().visit(stmt)
 
     for node, a, b, c in result:
         # TODO: check that a, b and c are of some float type
         args = c_ast.ExprList([a, b, c])
         mad = c_ast.FuncCall(c_ast.ID('mad'), args)
-        pyfo.cast.replace(fdef, node, mad)
+        pyfo.cast.replace(stmt, node, mad)
 
 
 def is_pi(node):
@@ -128,6 +128,8 @@ def level1(fdef, specs, env):
 
 def level2(fdef, specs, env):
     """Optimizations that might affect the result."""
-    substitute_mad(fdef)
+    for stmt in fdef.body.block_items[1:]:
+        substitute_mad(stmt)
+
     substitute_pi_funcs(fdef)
     substitute_arcus_funcs(fdef)
