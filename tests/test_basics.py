@@ -14,7 +14,7 @@ def k_scalar(s, x):
     return s * x
 
 
-@jit(ast=False)
+@jit(ast=True)
 def k_relative(x):
     return 0.5 * x[-1] + 0.5 * x[+1]
 
