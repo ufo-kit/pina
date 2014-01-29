@@ -58,7 +58,7 @@ def substitute_mad(stmt):
                         # invert c to be able to use mad()
                         right = c_ast.UnaryOp('-', right)
 
-                    result.append((v.op, v.left, v.right, right))
+                    result.append((node, v.left, v.right, right))
 
     AddVisitor().visit(stmt)
 
@@ -70,7 +70,7 @@ def substitute_mad(stmt):
 
 
 def is_pi(node):
-    return isinstance(node, c_ast.ID) and node.name == 'PI'
+    return isinstance(node, c_ast.ID) and node.name == 'pi'
 
 
 def substitute_pi_funcs(fdef):

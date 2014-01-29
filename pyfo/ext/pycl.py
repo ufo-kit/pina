@@ -35,7 +35,6 @@ class JustInTimeCall(object):
             kernel = self.kernels[key]
         else:
             source = self.func(*args)
-            print source
             program = cl.Program(context, source).build()
             kernel = getattr(program, self.name)
             self.kernels[key] = kernel
