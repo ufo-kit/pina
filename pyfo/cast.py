@@ -101,3 +101,36 @@ def find_type(c_node, node_type):
 def find_name(body, name):
     """Find all identifier nodes with *name*"""
     return find(body, lambda node: isinstance(node, c_ast.ID) and node.name == name)
+
+
+def find_global_names(fdef):
+    """Return all parameter names of *fdef*"""
+    return (p.name for p in fdef.decl.type.args.params)
+
+
+def TypeDecl(name, typename, init):
+    """Create a simple type declaration such as '*typename* *name* = *init*'"""
+    idtype = c_ast.IdentifierType([typename])
+    typedecl = c_ast.TypeDecl(name, [], idtype)
+    return c_ast.Decl(name, None, None, None, typedecl, init, None)
+
+
+def PtrDecl(name, typename, qualifiers):
+    """Create a pointer type declaration such as '*typename* * *name*'"""
+    idtype = c_ast.IdentifierType([typename])
+    typedecl = c_ast.TypeDecl(name, None, idtype)
+    ptrdecl = c_ast.PtrDecl(None, typedecl)
+    return c_ast.Decl(name, qualifiers, None, None, ptrdecl, None, None)
+
+
+def ArrayRef(name, subscript):
+    """Create an array reference such as '*name*[*subscript*]'"""
+    return c_ast.ArrayRef(c_ast.ID(name), c_ast.ID(subscript))
+
+
+def WorkItemIndex(dims=2):
+    """Build an expression to build the current work item index."""
+    left = c_ast.ID('get_global_id(1)')
+    right = c_ast.ID('get_global_size(0)')
+    a = c_ast.BinaryOp('*', left, right)
+    return c_ast.BinaryOp('+', a, c_ast.ID('get_global_id(0)'))
