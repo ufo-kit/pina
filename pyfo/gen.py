@@ -77,7 +77,7 @@ def replace_return_statements(fdef):
         pyfo.cast.replace(fdef.body, stmt, assignment)
 
     # add out argument
-    fdef.decl.type.args.params.append(pyfo.cast.PtrDecl('out', 'float', ['__global']))
+    fdef.decl.type.args.params.append(pyfo.cast.PtrDecl('out', '__global float', None))
 
 
 def replace_constants(fdef):
