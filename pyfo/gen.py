@@ -15,7 +15,8 @@ def fix_signature(fdef, specs):
         if isinstance(spec.qualifier, qualifiers.NoQualifier):
             d = pyfo.cast.TypeDecl(p.name, 'float', None)
         else:
-            d = pyfo.cast.PtrDecl(p.name, spec.qualifier.cl_keyword + ' float', None)
+            d = pyfo.cast.PtrDecl(p.name, ' float', None)
+            d.funcspec = [spec.qualifier.cl_keyword]
 
         pyfo.cast.replace(fdef.decl, p, d)
 
