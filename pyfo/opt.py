@@ -107,17 +107,21 @@ def substitute_arcus_funcs(fdef):
     result = []
 
     def is_func(node):
+        if isinstance(node,c_ast.FuncCall):
+            print node.name.name
         return isinstance(node, c_ast.FuncCall) and node.name.name in funcs
 
-    def is_eligible(node):
+    def matches(node):
         if not isinstance(node, c_ast.BinaryOp):
             return False
 
-        return (is_pi(node.left) and is_func(node.right)) or \
-               (is_pi(node.right) and is_func(node.left))
+        if not isinstance(node.left, c_ast.FuncCall):
+            return False
 
-    for node in pyfo.cast.find(fdef.body, is_eligible):
-        call = node.left if isinstance(node.left, c_ast.FuncCall) else node.right
+        return node.op == '/' and is_pi(node.right)
+
+    for node in pyfo.cast.find(fdef.body, matches):
+        call = node.left
         call.name.name += 'pi'
         pyfo.cast.replace(fdef.body, node, call)
 

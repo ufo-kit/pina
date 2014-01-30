@@ -20,6 +20,10 @@ def k_cospi(x):
     return np.cos(x * np.pi)
 
 
+def k_acospi(x):
+    return np.arccos(x) / np.pi
+
+
 def k_complexmad(x, y):
     return 2.0 * x + (3.5 * y + x)
 
@@ -50,6 +54,9 @@ class TestBasics(object):
 
     def test_cospi(self):
         compare(k_cospi, self.a)
+
+    def test_acospi(self):
+        compare(k_acospi, self.a)
 
     def test_complexmad(self):
         compare(k_complexmad, self.a, self.b)
