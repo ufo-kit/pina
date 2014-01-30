@@ -31,6 +31,10 @@ def acospi_test(x):
     return np.arccos(x) / np.pi
 
 
+def const_test(x, y, c):
+    return c[0,0] * x + y
+
+
 def measure_call(func, *args):
     times = []
 
@@ -53,7 +57,7 @@ def measure_call(func, *args):
 
 def run_single_gpu_tests():
     opt_level = 0
-    n_tests = 4
+    n_tests = 5
     results = {}
     widths = [1024]
     heights = list(range(1024, 8193, 512))
@@ -63,12 +67,14 @@ def run_single_gpu_tests():
         for height in heights:
             x = np.random.random((width, height)).astype(np.float32)
             y = np.random.random((width, height)).astype(np.float32)
+            c = np.ones((25, 25)).astype(np.float32)
 
             tests = [
                 (saxpy_test, (2.0, x, y)),
                 (cos_test, (x,)),
                 (cospi_test, (x,)),
                 (acospi_test, (x,)),
+                (const_test, (x, y, c))
             ]
 
             for func, args in tests:
