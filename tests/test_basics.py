@@ -19,6 +19,11 @@ def k_relative(x):
     return 0.5 * x[-1] + 0.5 * x[+1]
 
 
+@jit(ast=True)
+def k_rename(x):
+    return np.arctan(x)
+
+
 class TestBasics(object):
     def setUp(self):
         self.a = np.ones((512, 512))
@@ -33,3 +38,11 @@ class TestBasics(object):
 
     def test_relative(self):
         ast = k_relative(self.a)
+
+    def test_rename(self):
+        ast = k_rename(self.a)
+        calls = pyfo.cast.find_type(ast, c_ast.FuncCall)
+        assert(len(calls) == 1)
+
+        call = calls[0]
+        assert(call.name.name == 'atan')

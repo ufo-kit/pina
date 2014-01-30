@@ -115,12 +115,24 @@ def replace_constants(fdef):
         pyfo.cast.replace(fdef.body, node, c_ast.ID(consts[node.value]))
 
 
+def replace_func_names(fdef):
+    funcs = ('cos', 'sin', 'tan', 'cosh', 'sinh', 'tanh')
+    repl = {'arc'+name: 'a'+name for name in funcs}
+
+    def is_valid(node):
+        return isinstance(node, c_ast.FuncCall) and node.name.name in repl
+
+    for node in pyfo.cast.find(fdef.body, is_valid):
+        node.name.name = repl[node.name.name]
+
+
 def ast(func, specs, env=None):
     fdef = parser.parse(func)
 
     fix_signature(fdef, specs)
     fix_local_accesses(fdef)
     fix_for_loops(fdef, specs)
+    replace_func_names(fdef)
     replace_global_accesses(fdef, specs)
     replace_return_statements(fdef)
 
