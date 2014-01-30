@@ -85,7 +85,6 @@ class jit(object):
 
             return ast(self.func, specs, env=self.env)
 
-
         if not isinstance(cargs[0], types.FunctionType):
             return _wrapper(*cargs)
 

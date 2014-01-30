@@ -24,6 +24,10 @@ def k_complexmad(x, y):
     return 2.0 * x + (3.5 * y + x)
 
 
+def k_mad_scalar(a, x, y):
+    return a * x + y
+
+
 def compare(func, *args):
     reference = func(*args)
     result = jit(func)(*args)
@@ -49,3 +53,6 @@ class TestBasics(object):
 
     def test_complexmad(self):
         compare(k_complexmad, self.a, self.b)
+
+    def test_mad_scalar(self):
+        compare(k_mad_scalar, 2.0, self.a, self.b)
