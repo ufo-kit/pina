@@ -137,8 +137,11 @@ def ast(func, specs, env=None):
     replace_return_statements(fdef)
 
     if env:
-        pyfo.opt.level1(fdef, specs, env)
-        pyfo.opt.level2(fdef, specs, env)
+        if env.opt_level > 0:
+            pyfo.opt.level1(fdef, specs, env)
+
+        if env.opt_level > 1:
+            pyfo.opt.level2(fdef, specs, env)
 
     # we replace constants after optimization passes, because the symbols might be
     # removed by the optimization

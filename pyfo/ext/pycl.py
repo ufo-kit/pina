@@ -20,7 +20,8 @@ def np_arrays(args):
 
 
 class JustInTimeCall(object):
-    def __init__(self, func, work_size):
+    def __init__(self, func, opt_level):
+        env.opt_level = opt_level
         self.func = pyfo.jit(func, env=env)
         self.name = func.__name__
         self.buffers = {}
@@ -71,5 +72,5 @@ class JustInTimeCall(object):
         return self.output
 
 
-def jit(func, work_size=None):
-    return JustInTimeCall(func, work_size)
+def jit(func, opt_level=2):
+    return JustInTimeCall(func, opt_level)

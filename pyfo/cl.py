@@ -2,6 +2,7 @@ class ExecutionEnvironment(object):
     def __init__(self):
         self.MAX_CONSTANT_ARGS = 2
         self.MAX_CONSTANT_SIZE = 64 * 1024
+        self.opt_level = 2
 
 
 class BufferSpec(object):
