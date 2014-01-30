@@ -9,7 +9,6 @@ import pyfo.cl
 context = cl.create_some_context(False)
 queue = cl.CommandQueue(context)
 buffers = {}
-exec_times = []
 
 env = pyfo.cl.ExecutionEnvironment()
 env.MAX_CONSTANT_SIZE = context.devices[0].max_constant_buffer_size
@@ -27,6 +26,7 @@ class JustInTimeCall(object):
         self.buffers = {}
         self.kernel = None
         self.output = None
+        self.time = 0.0
 
     def __call__(self, *args):
         key = tuple(id(arg) for arg in args)
@@ -67,7 +67,7 @@ class JustInTimeCall(object):
         start = time.time()
         self.kernel(queue, first_np_array.shape, None, *kargs)
         cl.enqueue_copy(queue, self.output, out_buffer)
-        exec_times.append((self.name, time.time() - start))
+        self.time = time.time() - start
         return self.output
 
 
