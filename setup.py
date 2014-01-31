@@ -12,5 +12,10 @@ setup(
     packages=find_packages(exclude=['*.tests']),
     description="Python-to-OpenCL source compiler",
     long_description="Python-to-OpenCL source compiler",
-    install_requires=['pycparser']
+    install_requires=[
+        'progress >= 1.2',
+        'pycparser >= 2.10',
+        'pyopencl >= 2013.2',
+    ],
+    scripts=['bin/pyfo-perf']
 )
