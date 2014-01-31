@@ -1,11 +1,10 @@
-import os
-from pyfo import __version__
 from setuptools import setup, find_packages
 
+VERSION = '0.0.1-dev'
 
 setup(
     name='pyfo',
-    version=__version__,
+    version=VERSION,
     url='http://localhost',
     author='Matthias Vogelgesang',
     author_email='matthias.vogelgesang@kit.edu',
