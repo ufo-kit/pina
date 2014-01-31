@@ -2,13 +2,10 @@
 
 import sys
 import time
-import math
+import argparse
 import numpy as np
 from progress.bar import Bar
 from pyfo.ext.pycl import jit, JustInTimeCall
-
-
-N_ITERATIONS = 10
 
 
 def saxpy_test(a, x, y):
@@ -32,16 +29,16 @@ def acospi_test(x):
 
 
 def const_test(x, y, c):
-    return c[0,0] * x + y
+    return c[0, 0] * x + y
 
 
-def measure_call(func, *args):
+def measure_call(n_iterations, func, *args):
     times = []
 
     # avoid cold start, e.g. due to kernel compilation
     func(*args)
 
-    for i in range(N_ITERATIONS):
+    for i in range(n_iterations):
         start = time.time()
         func(*args)
         end = time.time()
@@ -51,16 +48,12 @@ def measure_call(func, *args):
         else:
             times.append(end - start)
 
-
     return (np.mean(times), np.std(times))
 
 
-def run_single_gpu_tests():
-    opt_level = 0
+def run_single_gpu_tests(width, heights, opts, output):
     n_tests = 5
     results = {}
-    widths = [1024]
-    heights = list(range(1024, 8193, 512))
     bar = Bar('Measuring', max=n_tests*len(widths)*len(heights))
 
     for width in widths:
@@ -79,8 +72,8 @@ def run_single_gpu_tests():
 
             for func, args in tests:
                 fname = func.__name__
-                mean_np, std_np = measure_call(func, *args)
-                mean_cl, std_cl = measure_call(jit(func, opt_level), *args)
+                mean_np, std_np = measure_call(opts.iterations, func, *args)
+                mean_cl, std_cl = measure_call(opts.iterations, jit(func, opts.opt_level), *args)
                 tup = (mean_np, std_np, mean_cl, std_cl)
 
                 if fname in results:
@@ -92,23 +85,65 @@ def run_single_gpu_tests():
 
     bar.finish()
 
-    sys.stdout.write("width  height  ")
+    output.write("width  height  ")
 
     for name in results:
-        sys.stdout.write('mnp_{name}  mcl_{name}  speed_{name}  '.format(name=name))
+        output.write('mnp_{name}  mcl_{name}  speed_{name}  '.format(name=name))
 
-    sys.stdout.write("\n")
+    output.write("\n")
 
     for width in widths:
         for height in heights:
-            sys.stdout.write('{}  {}  '.format(width, height))
+            output.write('{}  {}  '.format(width, height))
 
             for name in results:
                 mean_np, std_np, mean_cl, std_cl = results[name][(width, height)]
-                sys.stdout.write('{}  {}  {}  '.format(mean_np, mean_cl, mean_np / mean_cl))
+                output.write('{}  {}  {}  '.format(mean_np, mean_cl, mean_np / mean_cl))
 
-            sys.stdout.write('\n')
+            output.write('\n')
+
+
+def range_from(s):
+    """
+    Split *s* separated by ':' into int triple, filling missing values with 1s.
+    """
+    lst = [int(x) for x in s.split(':')]
+
+    if len(lst) == 1:
+        frm = lst[0]
+        return (frm, frm + 1, 1)
+
+    if len(lst) == 2:
+        return (lst[0], lst[1], 1)
+
+    if len(lst) == 3:
+        return (lst[0], lst[1], lst[2])
+
+    raise ValueError("Cannot parse {}".format(s))
 
 
 if __name__ == '__main__':
-    run_single_gpu_tests()
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--opt-level', type=int, choices=[0, 1, 2], default=2,
+                        help="Optimization level to use")
+
+    parser.add_argument('--width', type=str, default='1024',
+                        help="Width or range of width of a generated projection")
+
+    parser.add_argument('--height', type=str, default='1024',
+                        help="Height or range of height of a generated projection")
+
+    parser.add_argument('--iterations', type=int, default=10,
+                        help="Number of iterations per test")
+
+    parser.add_argument('--output', type=str,
+                        help="Output file for results")
+
+    args = parser.parse_args()
+    output = sys.stdout if not args.output else open(args.output, 'w')
+
+    widths = list(range(*range_from(args.width)))
+    heights = list(range(*range_from(args.height)))
+
+    run_single_gpu_tests(widths, heights, args, output)
