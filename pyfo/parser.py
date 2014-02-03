@@ -24,7 +24,7 @@ class PythonToC(ast.NodeVisitor):
     def generic_visit(self, node):
         ops = {ast.Add: '+', ast.Sub: '-', ast.Mult: '*', ast.Div: '/',
                ast.Gt: '>', ast.GtE: '>=', ast.Lt: '<', ast.LtE: '<=',
-               ast.NotEq: '!=',
+               ast.Eq: '==', ast.NotEq: '!=',
                ast.And: '&&', ast.Or: '||',
                ast.Invert: '~', ast.Not: '!', ast.UAdd: '+', ast.USub: '-'}
 
