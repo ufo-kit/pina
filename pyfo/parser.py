@@ -161,16 +161,13 @@ class PythonToC(ast.NodeVisitor):
     def visit_Call(self, node):
         args = [python_to_c_ast(arg) for arg in node.args]
         exprs = c_ast.ExprList(args)
-        name = node.func.id
         ctypes = ['int', 'float']
 
-        if name in ctypes:
-            typedecl = c_ast.TypeDecl(None, [], c_ast.IdentifierType([name]))
+        if isinstance(node.func, ast.Name) and node.func.id in ctypes:
+            typedecl = c_ast.TypeDecl(None, [], c_ast.IdentifierType([node.func.id]))
             self.result = c_ast.Cast(typedecl, exprs)
-            return
-
-        # TODO: check if call to an OpenCL function and leave it ...
-        self.result = c_ast.FuncCall(python_to_c_ast(node.func), exprs)
+        else:
+            self.result = c_ast.FuncCall(python_to_c_ast(node.func), exprs)
 
     def visit_FunctionDef(self, node):
         params = [python_to_c_ast(arg) for arg in node.args.args]
