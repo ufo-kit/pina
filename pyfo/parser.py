@@ -161,11 +161,15 @@ class PythonToC(ast.NodeVisitor):
         body = python_to_c_ast(node.body)
         self.result = c_ast.FuncDef(decl, None, body)
 
+    def visit_Expr(self, node):
+        # Ignore docstrings which are standalone expressions with a Str object.
+        pass
+
 
 def python_to_c_ast(py_node):
     if isinstance(py_node, list):
-        body = [python_to_c_ast(stmt) for stmt in py_node]
-        return c_ast.Compound(body)
+        body = (python_to_c_ast(stmt) for stmt in py_node)
+        return c_ast.Compound([stmt for stmt in body if stmt is not None])
     else:
         v = PythonToC()
         v.visit(py_node)
