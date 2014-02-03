@@ -150,8 +150,10 @@ class JustInTimeCall(object):
 
         kargs.append(out_buffer)
 
+        workspace = tuple([dim for dim in first_np_array.shape[::-1]])
+
         start = time.time()
-        self.kernel(queues[0], first_np_array.shape, None, *kargs)
+        self.kernel(queues[0], workspace, None, *kargs)
         cl.enqueue_copy(queues[0], self.output, out_buffer)
         self.time = time.time() - start
         return self.output
