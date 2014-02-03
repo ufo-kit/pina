@@ -101,9 +101,23 @@ class PythonToC(ast.NodeVisitor):
                                      python_to_c_ast(node.slice))
 
     def visit_Assign(self, node):
-        lvalue = python_to_c_ast(node.targets[0])
-        rvalue =  python_to_c_ast(node.value)
-        self.result = c_ast.Assignment('=', lvalue, rvalue)
+        # We resolve tuple assignments by creating an assignment for each tuple
+        # pair. All assignments are then converted to a compound statement,
+        # that means all variables _must_ be declared beforehands.
+        if isinstance(node.targets[0], ast.Tuple):
+            assignments = []
+
+            lvalues = (python_to_c_ast(e) for e in node.targets[0].elts)
+            rvalues = (python_to_c_ast(e) for e in node.value.elts)
+
+            for lvalue, rvalue in zip(lvalues, rvalues):
+                assignments.append(c_ast.Assignment('=', lvalue, rvalue))
+
+            self.result = c_ast.Compound(assignments)
+        else:
+            lvalue = python_to_c_ast(node.targets[0])
+            rvalue =  python_to_c_ast(node.value)
+            self.result = c_ast.Assignment('=', lvalue, rvalue)
 
     def visit_AugAssign(self, node):
         op = python_to_c_ast(node.op)

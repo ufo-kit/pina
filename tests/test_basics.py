@@ -24,6 +24,11 @@ def k_rename(x):
     return np.arctan(x)
 
 
+@jit(ast=True)
+def k_tuple_assignment(x, y):
+    a, b = x, y
+
+
 class TestBasics(object):
     def setUp(self):
         self.a = np.ones((512, 512))
@@ -46,3 +51,11 @@ class TestBasics(object):
 
         call = calls[0]
         assert(call.name.name == 'atan')
+
+    def test_tuple_assignment(self):
+        ast = k_tuple_assignment(self.a, self.b)
+        assignments = pyfo.cast.find_type(ast, c_ast.Assignment)
+        assert(len(assignments) == 2)
+
+        assert(assignments[0].lvalue.name == 'a')
+        assert(assignments[1].lvalue.name == 'b')
