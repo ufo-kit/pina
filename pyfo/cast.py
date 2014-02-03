@@ -123,6 +123,11 @@ def PtrDecl(name, typename, qualifiers):
     return c_ast.Decl(name, qualifiers, None, None, ptrdecl, None, None)
 
 
+def CastDecl(typename, exprs):
+    typedecl = c_ast.TypeDecl(None, [], c_ast.IdentifierType([typename]))
+    return c_ast.Cast(typedecl, exprs)
+
+
 def ArrayRef(name, subscript):
     """Create an array reference such as '*name*[*subscript*]'"""
     return c_ast.ArrayRef(c_ast.ID(name), c_ast.ID(subscript))

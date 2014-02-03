@@ -164,8 +164,7 @@ class PythonToC(ast.NodeVisitor):
         ctypes = ['int', 'float']
 
         if isinstance(node.func, ast.Name) and node.func.id in ctypes:
-            typedecl = c_ast.TypeDecl(None, [], c_ast.IdentifierType([node.func.id]))
-            self.result = c_ast.Cast(typedecl, exprs)
+            self.result = cast.CastDecl(node.func.id, exprs)
         else:
             self.result = c_ast.FuncCall(python_to_c_ast(node.func), exprs)
 
