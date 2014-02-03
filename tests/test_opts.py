@@ -7,6 +7,7 @@ from pycparser import c_ast
 
 
 env = ExecutionEnvironment()
+env.opt_level = 2
 
 
 @jit(env=env, ast=True)

@@ -14,9 +14,6 @@ class OpVisitor(c_ast.NodeVisitor):
             self.op = node
             self.left = node.left
             self.right = node.right
-        else:
-            self.visit(node.left)
-            self.visit(node.right)
 
 
 def constantify(fdef, specs, env):
@@ -63,7 +60,6 @@ def substitute_mad(stmt):
     AddVisitor().visit(stmt)
 
     for node, a, b, c in result:
-        # TODO: check that a, b and c are of some float type
         args = c_ast.ExprList([a, b, c])
         mad = c_ast.FuncCall(c_ast.ID('mad'), args)
         pyfo.cast.replace(stmt, node, mad)
