@@ -46,6 +46,7 @@ class JustInTimeCall(object):
         self.out_buffers = {}
         self.kernel = None
         self.output = None
+        self.temporary = None
         self.n_devices = len(devices)
         self.time = 0.0
 
@@ -65,14 +66,14 @@ class JustInTimeCall(object):
                     sub_buffers = self.buffers[id(arg)]
 
                     for i, s in enumerate(slices(arg, axis, self.n_devices)):
-                        cl.enqueue_copy(queues[i], sub_buffers[i], arg[s])
+                        hostbuf = np.copy(arg[s]) if axis > 0 else arg[s]
+                        cl.enqueue_copy(queues[i], sub_buffers[i], hostbuf)
                 else:
                     sub_buffers = []
 
                     for s in slices(arg, axis, self.n_devices):
-                        print s, arg.shape
-                        print arg[s].shape
-                        buf = cl.Buffer(context, self.INIT_FLAGS, 0, hostbuf=arg[s])
+                        hostbuf = np.copy(arg[s]) if axis > 0 else arg[s]
+                        buf = cl.Buffer(context, self.INIT_FLAGS, 0, hostbuf=hostbuf)
                         sub_buffers.append(buf)
 
                     self.buffers[id(arg)] = sub_buffers
@@ -82,6 +83,9 @@ class JustInTimeCall(object):
                 kargs.append(np.float32(arg))
 
         out_size = np.multiply(*largest_shape) * 4
+
+        out_shape = [dim for dim in largest_shape]
+        out_shape[axis] /= self.n_devices
 
         if key in self.out_buffers:
             out_buffers = self.out_buffers[key]
@@ -101,13 +105,18 @@ class JustInTimeCall(object):
                 cargs.append(k[i] if isinstance(k, list) else k)
 
             cargs.append(out_buffers[i])
-            self.kernel(queues[i], largest_shape, None, *cargs)
+            self.kernel(queues[i], out_shape, None, *cargs)
 
         if self.output is None:
             self.output = np.empty_like(arg)
+            self.temporary = np.empty(out_shape).astype(np.float32)
 
         for i, s in enumerate(slices(arg, axis, self.n_devices)):
-            cl.enqueue_copy(queues[i], self.output[s], out_buffers[i])
+            if axis > 0:
+                cl.enqueue_copy(queues[i], self.temporary, out_buffers[i])
+                self.output[s] = self.temporary
+            else:
+                cl.enqueue_copy(queues[i], self.output[s], out_buffers[i])
 
         self.time = time.time() - start
         return self.output

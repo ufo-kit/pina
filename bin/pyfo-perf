@@ -51,7 +51,7 @@ def measure_call(n_iterations, func, *args):
     return (np.mean(times), np.std(times))
 
 
-def run_single_gpu_tests(width, heights, opts, output):
+def run_tests(width, heights, opts, output):
     n_tests = 5
     results = {}
     bar = Bar('Measuring', max=n_tests*len(widths)*len(heights))
@@ -73,7 +73,9 @@ def run_single_gpu_tests(width, heights, opts, output):
             for func, args in tests:
                 fname = func.__name__
                 mean_np, std_np = measure_call(opts.iterations, func, *args)
-                mean_cl, std_cl = measure_call(opts.iterations, jit(func, opts.opt_level), *args)
+
+                jitted = jit(func, opts.opt_level, opts.multi_gpu)
+                mean_cl, std_cl = measure_call(opts.iterations, jitted, *args)
                 tup = (mean_np, std_np, mean_cl, std_cl)
 
                 if fname in results:
@@ -140,10 +142,13 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=str,
                         help="Output file for results")
 
+    parser.add_argument('--multi-gpu', action='store_true', default=False,
+                        help="Enable multi GPU execution")
+
     args = parser.parse_args()
     output = sys.stdout if not args.output else open(args.output, 'w')
 
     widths = list(range(*range_from(args.width)))
     heights = list(range(*range_from(args.height)))
 
-    run_single_gpu_tests(widths, heights, args, output)
+    run_tests(widths, heights, args, output)
