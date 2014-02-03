@@ -1,12 +1,7 @@
 import ast
 import inspect
+import cast
 from pycparser import c_ast
-
-
-def create_decl(name, typename, init):
-    idtype = c_ast.IdentifierType([typename])
-    typedecl = c_ast.TypeDecl(name, [], idtype)
-    return c_ast.Decl(name, None, None, None, None, typedecl, init, None)
 
 
 def constant(name):
@@ -78,7 +73,7 @@ class PythonToC(ast.NodeVisitor):
             to = args[0] if len(args) == 1 else args[1]
             step = c_ast.Constant('int', '1') if len(args) <= 2 else args[2]
 
-            init = create_decl(var, 'int', frm)
+            init = cast.TypeDecl(var, 'int', frm)
             cond = c_ast.BinaryOp('<', c_ast.ID(var), to)
             update = c_ast.ExprList([c_ast.BinaryOp('+=', c_ast.ID(var), step)])
 
