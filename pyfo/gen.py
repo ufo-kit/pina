@@ -33,10 +33,9 @@ def fix_for_loops(fdef, specs):
             n_it = specs[mem].size / 4
             loop.init = pyfo.cast.TypeDecl(it_var.name, 'int', c_ast.Constant('int', '0'))
             loop.cond = c_ast.BinaryOp('<', it_var, c_ast.Constant('int', str(n_it)))
-
-            update = c_ast.ExprList([c_ast.BinaryOp('+=', it_var, c_ast.Constant('int', '1')),
-                                     c_ast.Assignment('=', c_ast.ID(it), pyfo.cast.ArrayRef(mem, it_var.name))])
-            loop.next = update
+            loop.next = c_ast.ExprList([c_ast.BinaryOp('+=', it_var, c_ast.Constant('int', '1'))])
+            loop_var = pyfo.cast.TypeDecl(it, 'float', pyfo.cast.ArrayRef(mem, it_var.name))
+            loop.stmt.block_items.insert(0, loop_var)
         else:
             raise TypeError("Cannot infer iterator type")
 
