@@ -33,7 +33,7 @@ def const_test(x, y, c):
 
 
 def reco_cl(sinogram, center, sines, cosines):
-    width = 64
+    width = get_global_size(0)
     x = float(get_global_id(0))
     y = float(get_global_id(1))
     s = 0.0
@@ -47,15 +47,16 @@ def reco_cl(sinogram, center, sines, cosines):
 
 def reco_np(sinogram, center, sines, cosines):
     width = sinogram.shape[1]
-    slice = np.zeros((width, width))
+    half = width / 2
+    y_indices, x_indices = np.mgrid[-half:half, -half:half]
+    slice = np.zeros((width, width)).astype(np.float32)
 
-    for x in range(width):
-        for y in range(width):
-            for i in range(sinogram.shape[0]):
-                pos = (x - width / 2) * sines[i] + (y - width / 2) * cosines[i] + center
-                pos = int(round(pos))
-                if pos >= 0 and pos < width:
-                    slice[y, x] += sinogram[i, pos]
+    times = []
+
+    for i in range(sinogram.shape[0]):
+        pos = sines[i] * x_indices + cosines[i] * y_indices + center
+        pos[np.where((pos < 0) | (pos >= width))] = 0
+        slice += sinogram[i, pos.astype(np.int)]
 
     return slice
 
@@ -79,15 +80,16 @@ def measure_call(n_iterations, func, *args):
     return (np.mean(times), np.std(times))
 
 
-def run_tests(width, heights, opts, output):
+def run_tests(widths, heights, opts, output):
     n_tests = 5
     results = {}
     bar = Bar('Measuring', max=n_tests*len(widths)*len(heights))
 
+
     for width in widths:
         for height in heights:
-            x = np.random.random((width, height)).astype(np.float32)
-            y = np.random.random((width, height)).astype(np.float32)
+            x = np.random.random((height, width)).astype(np.float32)
+            y = np.random.random((height, width)).astype(np.float32)
             c = np.ones((25, 25)).astype(np.float32)
             sines = np.sin(np.linspace(0, np.pi, height))
             cosines = np.cos(np.linspace(0, np.pi, height))
