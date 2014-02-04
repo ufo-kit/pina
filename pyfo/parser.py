@@ -53,16 +53,7 @@ class PythonToC(ast.NodeVisitor):
 
     def visit_BoolOp(self, node):
         conds = [python_to_c_ast(v) for v in node.values]
-        ops = [c_ast.BinaryOp(python_to_c_ast(node.op), None, None) for i in range(len(conds) - 1)]
-
-        for op, cond in zip(ops, conds[:-1]):
-            op.left = cond
-
-        for op1, op2 in zip(ops[:-1], ops[1:]):
-            op1.right = op2
-
-        ops[-1].right = conds[-1]
-        self.result = ops[0]
+        self.result = cast.chain(python_to_c_ast(node.op), conds)
 
     def visit_If(self, node):
         else_branch = None if not node.orelse else python_to_c_ast(node.orelse)

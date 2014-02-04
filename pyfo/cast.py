@@ -108,6 +108,23 @@ def find_global_names(fdef):
     return (p.name for p in fdef.decl.type.args.params)
 
 
+def chain(op, exprs):
+    """
+    Create a chain of binary operations, linking expressions in *expr* with
+    *op*.
+    """
+    ops = [c_ast.BinaryOp(op, None, None) for i in range(len(exprs) - 1)]
+
+    for op, expr in zip(ops, exprs[:-1]):
+        op.left = expr
+
+    for op1, op2 in zip(ops[:-1], ops[1:]):
+        op1.right = op2
+
+    ops[-1].right = exprs[-1]
+    return ops[0]
+
+
 def TypeDecl(name, typename, init):
     """Create a simple type declaration such as '*typename* *name* = *init*'"""
     idtype = c_ast.IdentifierType([typename])
