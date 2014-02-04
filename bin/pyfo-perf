@@ -32,6 +32,34 @@ def const_test(x, y, c):
     return c[0, 0] * x + y
 
 
+def reco_cl(sinogram, center, sines, cosines):
+    width = 64
+    x = float(get_global_id(0))
+    y = float(get_global_id(1))
+    s = 0.0
+    for i in range(get_global_size(1)):
+        pos = (x - width / 2) * sines[i] + (y - width / 2) * cosines[i] + center
+        if pos >= 0 and pos < width:
+            s += sinogram[i, int(pos)]
+
+    return s
+
+
+def reco_np(sinogram, center, sines, cosines):
+    width = sinogram.shape[1]
+    slice = np.zeros((width, width))
+
+    for x in range(width):
+        for y in range(width):
+            for i in range(sinogram.shape[0]):
+                pos = (x - width / 2) * sines[i] + (y - width / 2) * cosines[i] + center
+                pos = int(round(pos))
+                if pos >= 0 and pos < width:
+                    slice[y, x] += sinogram[i, pos]
+
+    return slice
+
+
 def measure_call(n_iterations, func, *args):
     times = []
 
@@ -61,20 +89,23 @@ def run_tests(width, heights, opts, output):
             x = np.random.random((width, height)).astype(np.float32)
             y = np.random.random((width, height)).astype(np.float32)
             c = np.ones((25, 25)).astype(np.float32)
+            sines = np.sin(np.linspace(0, np.pi, height))
+            cosines = np.cos(np.linspace(0, np.pi, height))
 
             tests = [
-                (saxpy_test, (2.0, x, y)),
-                (cos_test, (x,)),
-                (cospi_test, (x,)),
-                (acospi_test, (x,)),
-                (const_test, (x, y, c))
+                (saxpy_test, saxpy_test, (2.0, x, y)),
+                (cos_test, cos_test, (x,)),
+                (cospi_test, cospi_test, (x,)),
+                (acospi_test, acospi_test, (x,)),
+                (const_test, const_test, (x, y, c)),
+                # (reco_np, reco_cl, (x, width / 2.0, sines, cosines)),
             ]
 
-            for func, args in tests:
-                fname = func.__name__
-                mean_np, std_np = measure_call(opts.iterations, func, *args)
+            for np_func, cl_func, args in tests:
+                fname = np_func.__name__
+                mean_np, std_np = measure_call(opts.iterations, np_func, *args)
 
-                jitted = jit(func, opts.opt_level, opts.multi_gpu)
+                jitted = jit(cl_func, opts.opt_level, opts.multi_gpu)
                 mean_cl, std_cl = measure_call(opts.iterations, jitted, *args)
                 tup = (mean_np, std_np, mean_cl, std_cl)
 
