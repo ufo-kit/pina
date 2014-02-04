@@ -15,4 +15,5 @@ class BufferSpec(object):
         self.name = name
         self.qualifier = None
         self.size = None
+        self.shape = None
         self.access = self.READ_ONLY

@@ -131,16 +131,7 @@ class PythonToC(ast.NodeVisitor):
 
     def visit_Tuple(self, node):
         elements = [python_to_c_ast(e) for e in node.elts]
-
-        def add_ops(lst, op):
-            if not lst:
-                return op
-
-            op = c_ast.BinaryOp('+', op, lst[0])
-            return add_ops(lst[1:], op)
-
-        start = c_ast.BinaryOp('+', elements[0], elements[1])
-        self.result = add_ops(elements[2:], start)
+        self.result = c_ast.ExprList(elements)
 
     def visit_Attribute(self, node):
         # strip off attribute accesses

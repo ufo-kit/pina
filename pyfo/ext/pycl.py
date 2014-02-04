@@ -161,6 +161,7 @@ class JustInTimeCall(object):
     def __call__(self, *args):
         if not self.kernel:
             source = self.func(*args)
+            print source
             program = cl.Program(context, source).build()
             self.kernel = getattr(program, self.name)
 

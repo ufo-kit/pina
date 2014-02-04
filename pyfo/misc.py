@@ -52,10 +52,12 @@ def arg_spec(arg, name):
     if arg.__class__ == np.ndarray:
         check_supported(repr(arg.dtype.type))
         spec.size = arg.nbytes
+        spec.shape = arg.shape
         spec.qualifier = Global(arg.dtype.type)
     else:
         check_supported(repr(arg.__class__))
         spec.qualifier = NoQualifier(arg.__class__)
+        spec.shape = (1,)
 
     return spec
 

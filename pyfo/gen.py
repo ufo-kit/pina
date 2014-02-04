@@ -1,3 +1,4 @@
+import operator
 import parser
 import qualifiers
 import pyfo.opt
@@ -61,12 +62,26 @@ def replace_global_accesses(fdef, specs):
         def is_unary_op_subscript(node):
             return is_valid(node) and isinstance(node.subscript, c_ast.UnaryOp)
 
+        def is_tuple_subscript(node):
+            return is_valid(node) and isinstance(node.subscript, c_ast.ExprList)
+
         for node in pyfo.cast.find(fdef.body, is_constant_subscript):
             node.subscript = c_ast.BinaryOp('+', c_ast.ID('idx'), node.subscript)
 
         for node in pyfo.cast.find(fdef.body, is_unary_op_subscript):
             subscript = node.subscript
             node.subscript = c_ast.BinaryOp(subscript.op, c_ast.ID('idx'), subscript.expr)
+
+        for node in pyfo.cast.find(fdef.body, is_tuple_subscript):
+            elts = node.subscript.exprs
+            spec = specs[name]
+            offsets = [reduce(operator.mul, spec.shape[i:]) for i in range(1, len(spec.shape))]
+            offsets.append(1)
+
+            mults = [c_ast.BinaryOp('*', c_ast.Constant('int', offset), element)
+                     for element, offset in zip(elts, offsets)]
+
+            node.subscript = pyfo.cast.chain('+', mults)
 
 
 def fix_local_accesses(fdef):
