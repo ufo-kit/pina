@@ -140,7 +140,7 @@ class JustInTimeCall(object):
 
         # TODO: use user-supplied information if necessary
         first_np_array = [a for a in args if isinstance(a, np.ndarray)][0]
-        workspace = shape if shape else tuple([dim for dim in first_np_array.shape[::-1]])
+        workspace = shape if shape else first_np_array.shape
 
         if self.output is None:
             self.output = np.empty(workspace).astype(np.float32)
