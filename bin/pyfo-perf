@@ -100,8 +100,10 @@ def run_tests(widths, heights, opts, output):
                 (cospi_test, cospi_test, (x,)),
                 (acospi_test, acospi_test, (x,)),
                 (const_test, const_test, (x, y, c)),
-                # (reco_np, reco_cl, (x, width / 2.0, sines, cosines)),
             ]
+
+            if opts.with_reco:
+                tests.append((reco_np, reco_cl, (x, width / 2.0, sines, cosines)))
 
             for np_func, cl_func, args in tests:
                 fname = np_func.__name__
@@ -177,6 +179,9 @@ if __name__ == '__main__':
 
     parser.add_argument('--multi-gpu', action='store_true', default=False,
                         help="Enable multi GPU execution")
+
+    parser.add_argument('--with-reco', action='store_true', default=False,
+                        help="Enable reconstruction test")
 
     args = parser.parse_args()
     output = sys.stdout if not args.output else open(args.output, 'w')
