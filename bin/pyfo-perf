@@ -4,7 +4,7 @@ import sys
 import time
 import argparse
 import numpy as np
-from progress.bar import Bar
+from progress.spinner import Spinner
 from pyfo.ext.pycl import jit, JustInTimeCall
 
 
@@ -81,10 +81,8 @@ def measure_call(n_iterations, func, *args):
 
 
 def run_tests(widths, heights, opts, output):
-    n_tests = 5
     results = {}
-    bar = Bar('Measuring', max=n_tests*len(widths)*len(heights))
-
+    spinner = Spinner('Measuring ')
 
     for width in widths:
         for height in heights:
@@ -118,9 +116,7 @@ def run_tests(widths, heights, opts, output):
                 else:
                     results[fname] = {(width, height): tup}
 
-                bar.next()
-
-    bar.finish()
+                spinner.next()
 
     output.write("width  height  ")
 
