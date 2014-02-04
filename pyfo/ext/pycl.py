@@ -121,7 +121,7 @@ class JustInTimeCall(object):
         self.time = time.time() - start
         return self.output
 
-    def run_single_gpu(self, *args):
+    def run_single_gpu(self, shape, *args):
         kargs = []
 
         for arg in args:
@@ -140,9 +140,10 @@ class JustInTimeCall(object):
 
         # TODO: use user-supplied information if necessary
         first_np_array = [a for a in args if isinstance(a, np.ndarray)][0]
+        workspace = shape if shape else tuple([dim for dim in first_np_array.shape[::-1]])
 
         if self.output is None:
-            self.output = np.empty_like(first_np_array)
+            self.output = np.empty(workspace).astype(np.float32)
             out_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY, self.output.nbytes)
             self.buffers[id(self.output)] = out_buffer
         else:
@@ -150,25 +151,24 @@ class JustInTimeCall(object):
 
         kargs.append(out_buffer)
 
-        workspace = tuple([dim for dim in first_np_array.shape[::-1]])
-
         start = time.time()
         self.kernel(queues[0], workspace, None, *kargs)
         cl.enqueue_copy(queues[0], self.output, out_buffer)
         self.time = time.time() - start
         return self.output
 
-    def __call__(self, *args):
+    def __call__(self, *args, **kwargs):
+        shape = kwargs.get('shape', None)
+
         if not self.kernel:
             source = self.func(*args)
-            print source
             program = cl.Program(context, source).build()
             self.kernel = getattr(program, self.name)
 
         if self.use_multi_gpu:
             return self.run_multi_gpu(*args)
         else:
-            return self.run_single_gpu(*args)
+            return self.run_single_gpu(shape, *args)
 
 
 def jit(func, opt_level=2, use_multi_gpu=False):
