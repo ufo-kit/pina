@@ -51,7 +51,7 @@ class JustInTimeCall(object):
         self.time = 0.0
 
     def run_multi_gpu(self, *args):
-        np_args = [a for a in args if isinstance(a, np.ndarray)]
+        np_args = [a for a in args if isinstance(a, np.ndarray) and len(a.shape) > 1]
         key = tuple(id(a) for a in np_args)
         largest_shape = sorted([a.shape for a in np_args])[0]
 
