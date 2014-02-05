@@ -65,18 +65,20 @@ class MultiCall(JustInTimeCall):
         kargs = []
         out_buffers = []
 
+        n_devices = self.mojito.n_devices
+
         for arg in args:
             if isinstance(arg, np.ndarray):
                 if id(arg) in self.buffers:
                     sub_buffers = self.buffers[id(arg)]
 
-                    for i, s in enumerate(slices(arg, axis, self.n_devices)):
+                    for i, s in enumerate(slices(arg, axis, n_devices)):
                         hostbuf = np.copy(arg[s]) if axis > 0 else arg[s]
                         cl.enqueue_copy(self.mojito.queues[i], sub_buffers[i], hostbuf)
                 else:
                     sub_buffers = []
 
-                    for s in slices(arg, axis, self.mojito.n_devices):
+                    for s in slices(arg, axis, n_devices):
                         hostbuf = np.copy(arg[s]) if axis > 0 else arg[s]
                         buf = cl.Buffer(self.mojito.context, self.INIT_FLAGS, 0, hostbuf=hostbuf)
                         sub_buffers.append(buf)
@@ -90,12 +92,12 @@ class MultiCall(JustInTimeCall):
         out_size = np.multiply(*largest_shape) * 4
 
         out_shape = [dim for dim in largest_shape]
-        out_shape[axis] /= self.mojito.n_devices
+        out_shape[axis] /= n_devices
 
         if key in self.out_buffers:
             out_buffers = self.out_buffers[key]
         else:
-            for i in range(self.mojito.n_devices):
+            for i in range(n_devices):
                 buf_out = cl.Buffer(self.mojito.context, cl.mem_flags.WRITE_ONLY, size=int(out_size))
                 out_buffers.append(buf_out)
 
@@ -103,7 +105,7 @@ class MultiCall(JustInTimeCall):
 
         start = time.time()
 
-        for i in range(self.mojito.n_devices):
+        for i in range(n_devices):
             cargs = []
 
             for k in kargs:
@@ -116,7 +118,7 @@ class MultiCall(JustInTimeCall):
             self.output = np.empty_like(arg)
             self.temporary = np.empty(out_shape).astype(np.float32)
 
-        for i, s in enumerate(slices(arg, axis, self.mojito.n_devices)):
+        for i, s in enumerate(slices(arg, axis, n_devices)):
             if axis > 0:
                 cl.enqueue_copy(self.mojito.queues[i], self.temporary, out_buffers[i])
                 self.output[s] = self.temporary
