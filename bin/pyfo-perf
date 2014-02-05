@@ -84,7 +84,8 @@ def run_tests(opts, output):
     results = {}
     spinner = Spinner('Measuring ')
 
-    m = Mojito(preferred=opts.platform,
+    m = Mojito(preferred_platform=opts.platform,
+               preferred_device=opts.device,
                opt_level=opts.opt_level,
                use_multi_gpu=opts.multi_gpu)
 
@@ -191,8 +192,11 @@ if __name__ == '__main__':
     parser.add_argument('--with-reco', type=str, choices=["empty","numpy", ""], default="",
                         help="Enable reconstruction test")
 
-    parser.add_argument('--platform', type=str,
+    parser.add_argument('--platform', type=str, default=None,
                         help="Preferred platform to run tests")
+
+    parser.add_argument('--device', type=str, default=None,
+                        help="Preferred devices to run tests")
 
     args = parser.parse_args()
     output = sys.stdout if not args.output else open(args.output, 'w')

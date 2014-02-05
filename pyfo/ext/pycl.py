@@ -169,24 +169,39 @@ class SingleCall(JustInTimeCall):
 
 
 class Mojito(object):
-    def __init__(self, opt_level=2, use_multi_gpu=False, preferred=None):
+    def __init__(self, opt_level=2, use_multi_gpu=False,
+                 preferred_platform=None,
+                 preferred_device=None):
         platforms = cl.get_platforms()
 
-        if preferred:
-            needle = preferred.lower()
-            candidates = [p for p in platforms
-                          if needle in p.get_info(cl.platform_info.NAME).lower()]
+        if preferred_platform:
+            needle = preferred_platform.lower()
+            matches = [p for p in platforms if needle in p.get_info(cl.platform_info.NAME).lower()]
 
-            if candidates:
-                self.platform = candidates[0]
+            if matches:
+                self.platform = matches[0]
             else:
-                msg = 'Could not find preferred platform, falling back to the first one.'
+                msg = "Could not find preferred platform, falling back to the first one."
                 sys.stderr.write(msg)
                 self.platform = platforms[0]
         else:
             self.platform = platforms[0]
 
-        self.devices = self.platform.get_devices()
+        devices = self.platform.get_devices()
+
+        if preferred_device:
+            needle = preferred_device.lower()
+            matches = [d for d in devices if needle in d.get_info(cl.device_info.NAME).lower()]
+
+            if matches:
+                self.devices = matches
+            else:
+                sys.stderr.write("Could not find preferred devices, using all.")
+                self.devices = devices
+
+        else:
+            self.devices = devices
+
         self.context = cl.Context(devices=self.devices)
         self.queues = [cl.CommandQueue(self.context, device=d) for d in self.devices]
 
