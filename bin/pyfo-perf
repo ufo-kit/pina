@@ -84,7 +84,8 @@ def run_tests(opts, output):
     results = {}
     spinner = Spinner('Measuring ')
 
-    m = Mojito(use_multi_gpu=opts.multi_gpu)
+    m = Mojito(opt_level=opts.opt_level,
+               use_multi_gpu=opts.multi_gpu)
 
     widths = list(range(*range_from(opts.width)))
     heights = list(range(*range_from(opts.height)))
