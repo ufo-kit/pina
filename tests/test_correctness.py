@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 
 import numpy as np
-from pyfo.ext.pycl import jit
+from pyfo.ext.pycl import Mojito
+
+
+m = Mojito()
 
 
 def k_add(x, y):
@@ -34,7 +37,7 @@ def k_mad_scalar(a, x, y):
 
 def compare(func, *args):
     reference = func(*args)
-    result = jit(func)(*args)
+    result = m.jit(func)(*args)
     assert (np.linalg.norm(reference - result) < 0.01)
 
 

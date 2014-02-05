@@ -5,7 +5,7 @@ import time
 import argparse
 import numpy as np
 from progress.spinner import Spinner
-from pyfo.ext.pycl import jit, JustInTimeCall
+from pyfo.ext.pycl import Mojito, JustInTimeCall
 
 
 def saxpy_test(a, x, y):
@@ -80,9 +80,14 @@ def measure_call(n_iterations, func, *args):
     return (np.mean(times), np.std(times))
 
 
-def run_tests(widths, heights, opts, output):
+def run_tests(opts, output):
     results = {}
     spinner = Spinner('Measuring ')
+
+    m = Mojito(use_multi_gpu=opts.multi_gpu)
+
+    widths = list(range(*range_from(opts.width)))
+    heights = list(range(*range_from(opts.height)))
 
     for width in widths:
         for height in heights:
@@ -109,11 +114,10 @@ def run_tests(widths, heights, opts, output):
                 tests.append((empty, reco_cl, (x, width / 2.0, sines, cosines)))
 
             for np_func, cl_func, args in tests:
-                fname = np_func.__name__
                 mean_np, std_np = measure_call(opts.iterations, np_func, *args)
+                mean_cl, std_cl = measure_call(opts.iterations, m.jit(cl_func), *args)
 
-                jitted = jit(cl_func, opts.opt_level, opts.multi_gpu)
-                mean_cl, std_cl = measure_call(opts.iterations, jitted, *args)
+                fname = np_func.__name__
                 tup = (mean_np, std_np, mean_cl, std_cl)
 
                 if fname in results:
@@ -123,6 +127,7 @@ def run_tests(widths, heights, opts, output):
 
                 spinner.next()
 
+    spinner.finish()
     output.write("width  height  ")
 
     for name in results:
@@ -186,8 +191,4 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     output = sys.stdout if not args.output else open(args.output, 'w')
-
-    widths = list(range(*range_from(args.width)))
-    heights = list(range(*range_from(args.height)))
-
-    run_tests(widths, heights, args, output)
+    run_tests(args, output)
