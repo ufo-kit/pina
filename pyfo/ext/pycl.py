@@ -1,7 +1,7 @@
+import sys
 import time
 import pyopencl as cl
 import numpy as np
-
 import pyfo
 import pyfo.cl
 
@@ -176,7 +176,13 @@ class Mojito(object):
             needle = preferred.lower()
             candidates = [p for p in platforms
                           if needle in p.get_info(cl.platform_info.NAME).lower()]
-            self.platform = candidates[0] if candidates else platforms[0]
+
+            if candidates:
+                self.platform = candidates[0]
+            else:
+                msg = 'Could not find preferred platform, falling back to the first one.'
+                sys.stderr.write(msg)
+                self.platform = platforms[0]
         else:
             self.platform = platforms[0]
 
