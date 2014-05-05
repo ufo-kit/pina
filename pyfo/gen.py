@@ -141,12 +141,28 @@ def replace_func_names(fdef):
         node.name.name = repl[node.name.name]
 
 
+def replace_len_builtin(fdef, specs):
+    def is_valid_len_call(node):
+        return isinstance(node, c_ast.FuncCall) and \
+               node.name.name == 'len' and \
+               len(node.args.exprs) == 1 and \
+               isinstance(node.args.exprs[0], c_ast.ID)
+
+    for node in pyfo.cast.find(fdef.body, is_valid_len_call):
+        arg = node.args.exprs[0]
+
+        if arg.name in specs:
+            spec = specs[arg.name]
+            pyfo.cast.replace(fdef.body, node, c_ast.ID(str(sum(spec.shape))))
+
+
 def ast(func, specs, env=None):
     fdef = parser.parse(func)
 
     fix_signature(fdef, specs)
     fix_local_accesses(fdef)
     fix_for_loops(fdef, specs)
+    replace_len_builtin(fdef, specs)
     replace_func_names(fdef)
     replace_global_accesses(fdef, specs)
     replace_return_statements(fdef)
