@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 VERSION = '0.0.1-dev'
 
 setup(
-    name='pyfo',
+    name='pina',
     version=VERSION,
     url='http://localhost',
     author='Matthias Vogelgesang',
@@ -16,5 +16,5 @@ setup(
         'pycparser >= 2.10',
         'pyopencl >= 2013.2',
     ],
-    scripts=['bin/pyfo-perf']
+    scripts=['bin/pina-perf']
 )

@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 import numpy as np
-import pyfo.cast
-from pyfo import jit, ExecutionEnvironment
+import pina.cast
+from pina import jit, ExecutionEnvironment
 from pycparser import c_ast
 
 
@@ -36,7 +36,7 @@ class TestBasics(object):
 
     def test_scalar(self):
         ast = k_scalar(3.5, self.a)
-        s = pyfo.cast.find(ast, lambda node: isinstance(node, c_ast.Decl) and node.name == 's')
+        s = pina.cast.find(ast, lambda node: isinstance(node, c_ast.Decl) and node.name == 's')
         assert(len(s) == 1)
         assert(isinstance(s[0].type, c_ast.TypeDecl))
         assert(isinstance(s[0].type.type, c_ast.IdentifierType))
@@ -46,7 +46,7 @@ class TestBasics(object):
 
     def test_rename(self):
         ast = k_rename(self.a)
-        calls = pyfo.cast.find_type(ast, c_ast.FuncCall)
+        calls = pina.cast.find_type(ast, c_ast.FuncCall)
         assert(len(calls) == 1)
 
         call = calls[0]
@@ -54,7 +54,7 @@ class TestBasics(object):
 
     def test_tuple_assignment(self):
         ast = k_tuple_assignment(self.a, self.b)
-        assignments = pyfo.cast.find_type(ast, c_ast.Assignment)
+        assignments = pina.cast.find_type(ast, c_ast.Assignment)
         assert(len(assignments) == 2)
 
         assert(assignments[0].lvalue.name == 'a')

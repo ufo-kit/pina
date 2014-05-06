@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
 import numpy as np
-from pyfo.ext.pycl import Mojito
+from pina.ext.pycl import Runtime
 
 
-m = Mojito()
+m = Runtime()
 
 
 def k_add(x, y):

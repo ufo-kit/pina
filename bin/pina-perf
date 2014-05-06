@@ -6,7 +6,7 @@ import argparse
 import itertools
 import numpy as np
 from progress.spinner import Spinner
-from pyfo.ext.pycl import Mojito, JustInTimeCall
+from pina.ext.pycl import Runtime, JustInTimeCall
 
 
 def saxpy_test(a, x, y):
@@ -85,10 +85,10 @@ def run_tests(opts, output):
     results = {}
     spinner = Spinner('Measuring ')
 
-    m = Mojito(preferred_platform=opts.platform,
-               preferred_device=opts.device,
-               opt_level=opts.opt_level,
-               use_multi_gpu=opts.multi_gpu)
+    m = Runtime(preferred_platform=opts.platform,
+                preferred_device=opts.device,
+                opt_level=opts.opt_level,
+                use_multi_gpu=opts.multi_gpu)
 
     if opts.scan:
         sizes = list(range(*range_from(opts.scan)))

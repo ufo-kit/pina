@@ -2,8 +2,8 @@ import sys
 import time
 import pyopencl as cl
 import numpy as np
-import pyfo
-import pyfo.cl
+import pina
+import pina.cl
 
 
 def slices(array, axis, n_devices):
@@ -26,9 +26,9 @@ class JustInTimeCall(object):
 
     INIT_FLAGS = cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR
 
-    def __init__(self, func, mojito):
-        self.func = pyfo.jit(func, env=mojito.env)
-        self.mojito = mojito
+    def __init__(self, func, runtime):
+        self.func = pina.jit(func, env=runtime.env)
+        self.runtime = runtime
         self.name = func.__name__
         self.buffers = {}
         self.out_buffers = {}
@@ -42,7 +42,7 @@ class JustInTimeCall(object):
 
         if not self.kernel:
             source = self.func(*args)
-            program = cl.Program(self.mojito.context, source).build()
+            program = cl.Program(self.runtime.context, source).build()
             self.kernel = getattr(program, self.name)
 
         return self.run(self.kernel, shape, *args)
@@ -52,8 +52,8 @@ class JustInTimeCall(object):
 
 
 class MultiCall(JustInTimeCall):
-    def __init__(self, func, mojito):
-        super(MultiCall, self).__init__(func, mojito)
+    def __init__(self, func, runtime):
+        super(MultiCall, self).__init__(func, runtime)
 
     def run(self, kernel, shape, *args):
         np_args = [a for a in args if isinstance(a, np.ndarray) and len(a.shape) > 1]
@@ -65,7 +65,7 @@ class MultiCall(JustInTimeCall):
         kargs = []
         out_buffers = []
 
-        n_devices = self.mojito.n_devices
+        n_devices = self.runtime.n_devices
 
         for arg in args:
             if isinstance(arg, np.ndarray):
@@ -74,13 +74,13 @@ class MultiCall(JustInTimeCall):
 
                     for i, s in enumerate(slices(arg, axis, n_devices)):
                         hostbuf = np.copy(arg[s]) if axis > 0 else arg[s]
-                        cl.enqueue_copy(self.mojito.queues[i], sub_buffers[i], hostbuf)
+                        cl.enqueue_copy(self.runtime.queues[i], sub_buffers[i], hostbuf)
                 else:
                     sub_buffers = []
 
                     for s in slices(arg, axis, n_devices):
                         hostbuf = np.copy(arg[s]) if axis > 0 else arg[s]
-                        buf = cl.Buffer(self.mojito.context, self.INIT_FLAGS, 0, hostbuf=hostbuf)
+                        buf = cl.Buffer(self.runtime.context, self.INIT_FLAGS, 0, hostbuf=hostbuf)
                         sub_buffers.append(buf)
 
                     self.buffers[id(arg)] = sub_buffers
@@ -98,7 +98,7 @@ class MultiCall(JustInTimeCall):
             out_buffers = self.out_buffers[key]
         else:
             for i in range(n_devices):
-                buf_out = cl.Buffer(self.mojito.context, cl.mem_flags.WRITE_ONLY, size=int(out_size))
+                buf_out = cl.Buffer(self.runtime.context, cl.mem_flags.WRITE_ONLY, size=int(out_size))
                 out_buffers.append(buf_out)
 
             self.out_buffers[key] = out_buffers
@@ -112,7 +112,7 @@ class MultiCall(JustInTimeCall):
                 cargs.append(k[i] if isinstance(k, list) else k)
 
             cargs.append(out_buffers[i])
-            kernel(self.mojito.queues[i], out_shape, None, *cargs)
+            kernel(self.runtime.queues[i], out_shape, None, *cargs)
 
         if self.output is None:
             self.output = np.empty_like(arg)
@@ -120,18 +120,18 @@ class MultiCall(JustInTimeCall):
 
         for i, s in enumerate(slices(arg, axis, n_devices)):
             if axis > 0:
-                cl.enqueue_copy(self.mojito.queues[i], self.temporary, out_buffers[i])
+                cl.enqueue_copy(self.runtime.queues[i], self.temporary, out_buffers[i])
                 self.output[s] = self.temporary
             else:
-                cl.enqueue_copy(self.mojito.queues[i], self.output[s], out_buffers[i])
+                cl.enqueue_copy(self.runtime.queues[i], self.output[s], out_buffers[i])
 
         self.time = time.time() - start
         return self.output
 
 
 class SingleCall(JustInTimeCall):
-    def __init__(self, func, mojito):
-        super(SingleCall, self).__init__(func, mojito)
+    def __init__(self, func, runtime):
+        super(SingleCall, self).__init__(func, runtime)
 
     def run(self, kernel, shape, *args):
         kargs = []
@@ -140,10 +140,10 @@ class SingleCall(JustInTimeCall):
             if isinstance(arg, np.ndarray):
                 if id(arg) in self.buffers:
                     buf = self.buffers[id(arg)]
-                    cl.enqueue_copy(self.mojito.queues[0], buf, arg)
+                    cl.enqueue_copy(self.runtime.queues[0], buf, arg)
                 else:
                     flags = cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR
-                    buf = cl.Buffer(self.mojito.context, flags, arg.nbytes, hostbuf=arg)
+                    buf = cl.Buffer(self.runtime.context, flags, arg.nbytes, hostbuf=arg)
                     self.buffers[id(arg)] = buf
 
                 kargs.append(buf)
@@ -156,7 +156,7 @@ class SingleCall(JustInTimeCall):
 
         if self.output is None:
             self.output = np.empty(workspace).astype(np.float32)
-            out_buffer = cl.Buffer(self.mojito.context, cl.mem_flags.WRITE_ONLY, self.output.nbytes)
+            out_buffer = cl.Buffer(self.runtime.context, cl.mem_flags.WRITE_ONLY, self.output.nbytes)
             self.buffers[id(self.output)] = out_buffer
         else:
             out_buffer = self.buffers[id(self.output)]
@@ -164,13 +164,13 @@ class SingleCall(JustInTimeCall):
         kargs.append(out_buffer)
 
         start = time.time()
-        kernel(self.mojito.queues[0], workspace, None, *kargs)
-        cl.enqueue_copy(self.mojito.queues[0], self.output, out_buffer)
+        kernel(self.runtime.queues[0], workspace, None, *kargs)
+        cl.enqueue_copy(self.runtime.queues[0], self.output, out_buffer)
         self.time = time.time() - start
         return self.output
 
 
-class Mojito(object):
+class Runtime(object):
     def __init__(self, opt_level=2, use_multi_gpu=False,
                  preferred_platform=None,
                  preferred_device=None):
@@ -207,7 +207,7 @@ class Mojito(object):
         self.context = cl.Context(devices=self.devices)
         self.queues = [cl.CommandQueue(self.context, device=d) for d in self.devices]
 
-        self.env = pyfo.cl.ExecutionEnvironment()
+        self.env = pina.cl.ExecutionEnvironment()
         self.env.MAX_CONSTANT_SIZE = min(d.max_constant_buffer_size for d in self.devices)
         self.env.MAX_CONSTANT_ARGS = min(d.max_constant_args for d in self.devices)
 

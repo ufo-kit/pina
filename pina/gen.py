@@ -1,8 +1,8 @@
 import operator
 import parser
 import qualifiers
-import pyfo.opt
-import pyfo.cast
+import pina.opt
+import pina.cast
 from pycparser import c_generator, c_ast
 
 
@@ -14,17 +14,17 @@ def fix_signature(fdef, specs):
         spec = specs[p.name]
 
         if isinstance(spec.qualifier, qualifiers.NoQualifier):
-            d = pyfo.cast.TypeDecl(p.name, 'float', None)
+            d = pina.cast.TypeDecl(p.name, 'float', None)
         else:
-            d = pyfo.cast.PtrDecl(p.name, ' float', None)
+            d = pina.cast.PtrDecl(p.name, ' float', None)
             d.funcspec = [spec.qualifier.cl_keyword]
 
-        pyfo.cast.replace(fdef.decl, p, d)
+        pina.cast.replace(fdef.decl, p, d)
 
 
 def fix_for_loops(fdef, specs):
     """Instantiate a real for loop now that we know sizes of data."""
-    loops = [l for l in pyfo.cast.find_type(fdef.body, c_ast.For) if hasattr(l, '_extra')]
+    loops = [l for l in pina.cast.find_type(fdef.body, c_ast.For) if hasattr(l, '_extra')]
 
     for loop in loops:
         it, mem = loop._extra
@@ -32,10 +32,10 @@ def fix_for_loops(fdef, specs):
         if mem in specs:
             it_var = c_ast.ID(it + '__it')
             n_it = specs[mem].size / 4
-            loop.init = pyfo.cast.TypeDecl(it_var.name, 'int', c_ast.Constant('int', '0'))
+            loop.init = pina.cast.TypeDecl(it_var.name, 'int', c_ast.Constant('int', '0'))
             loop.cond = c_ast.BinaryOp('<', it_var, c_ast.Constant('int', str(n_it)))
             loop.next = c_ast.ExprList([c_ast.BinaryOp('+=', it_var, c_ast.Constant('int', '1'))])
-            loop_var = pyfo.cast.TypeDecl(it, 'float', pyfo.cast.ArrayRef(mem, it_var.name))
+            loop_var = pina.cast.TypeDecl(it, 'float', pina.cast.ArrayRef(mem, it_var.name))
             loop.stmt.block_items.insert(0, loop_var)
         else:
             raise TypeError("Cannot infer iterator type")
@@ -43,14 +43,14 @@ def fix_for_loops(fdef, specs):
 
 def replace_global_accesses(fdef, specs):
     """Replace all reads and writes on global variabls with array accesses."""
-    names = [n for n in pyfo.cast.find_global_names(fdef)
+    names = [n for n in pina.cast.find_global_names(fdef)
              if n in specs and not isinstance(specs[n].qualifier, qualifiers.NoQualifier)]
 
     for name in names:
         # Replace simple identifiers
-        for node in pyfo.cast.find_name(fdef.body, name):
-            read_access = pyfo.cast.ArrayRef(name, 'idx')
-            pyfo.cast.replace(fdef.body, node, read_access)
+        for node in pina.cast.find_name(fdef.body, name):
+            read_access = pina.cast.ArrayRef(name, 'idx')
+            pina.cast.replace(fdef.body, node, read_access)
 
         # Replace already indexed accesses
         def is_valid(node):
@@ -65,14 +65,14 @@ def replace_global_accesses(fdef, specs):
         def is_tuple_subscript(node):
             return is_valid(node) and isinstance(node.subscript, c_ast.ExprList)
 
-        for node in pyfo.cast.find(fdef.body, is_constant_subscript):
+        for node in pina.cast.find(fdef.body, is_constant_subscript):
             node.subscript = c_ast.BinaryOp('+', c_ast.ID('idx'), node.subscript)
 
-        for node in pyfo.cast.find(fdef.body, is_unary_op_subscript):
+        for node in pina.cast.find(fdef.body, is_unary_op_subscript):
             subscript = node.subscript
             node.subscript = c_ast.BinaryOp(subscript.op, c_ast.ID('idx'), subscript.expr)
 
-        for node in pyfo.cast.find(fdef.body, is_tuple_subscript):
+        for node in pina.cast.find(fdef.body, is_tuple_subscript):
             elts = node.subscript.exprs
             spec = specs[name]
             offsets = [reduce(operator.mul, spec.shape[i:]) for i in range(1, len(spec.shape))]
@@ -81,14 +81,14 @@ def replace_global_accesses(fdef, specs):
             mults = [c_ast.BinaryOp('*', c_ast.Constant('int', offset), element)
                      for element, offset in zip(elts, offsets)]
 
-            node.subscript = pyfo.cast.chain('+', mults)
+            node.subscript = pina.cast.chain('+', mults)
 
 
 def fix_local_accesses(fdef):
     """Add a declaration for all referenced local variables"""
     localvars = []
-    globalvars = list(pyfo.cast.find_global_names(fdef))
-    assignments = pyfo.cast.find_type(fdef.body, c_ast.Assignment)
+    globalvars = list(pina.cast.find_global_names(fdef))
+    assignments = pina.cast.find_type(fdef.body, c_ast.Assignment)
 
     for each in assignments:
         name = each.lvalue.name
@@ -96,22 +96,22 @@ def fix_local_accesses(fdef):
             localvars.append(each.lvalue.name)
 
     for var in localvars:
-        fdef.body.block_items.insert(0, pyfo.cast.TypeDecl(var, 'float', None))
+        fdef.body.block_items.insert(0, pina.cast.TypeDecl(var, 'float', None))
 
     # create work item indices
-    fdef.body.block_items.insert(0, pyfo.cast.TypeDecl('idx', 'int', pyfo.cast.WorkItemIndex()))
+    fdef.body.block_items.insert(0, pina.cast.TypeDecl('idx', 'int', pina.cast.WorkItemIndex()))
 
 
 def replace_return_statements(fdef):
     """Turn all return statements into writes to a global 'out' buffer."""
-    lvalue = pyfo.cast.ArrayRef('out', 'idx')
+    lvalue = pina.cast.ArrayRef('out', 'idx')
 
-    for stmt in pyfo.cast.find_type(fdef.body, c_ast.Return):
-        assignment = c_ast.Assignment('=', pyfo.cast.ArrayRef('out', 'idx'), stmt.expr)
-        pyfo.cast.replace(fdef.body, stmt, assignment)
+    for stmt in pina.cast.find_type(fdef.body, c_ast.Return):
+        assignment = c_ast.Assignment('=', pina.cast.ArrayRef('out', 'idx'), stmt.expr)
+        pina.cast.replace(fdef.body, stmt, assignment)
 
     # add out argument
-    fdef.decl.type.args.params.append(pyfo.cast.PtrDecl('out', '__global float', None))
+    fdef.decl.type.args.params.append(pina.cast.PtrDecl('out', '__global float', None))
 
 
 def replace_constants(fdef):
@@ -126,8 +126,8 @@ def replace_constants(fdef):
     def is_constant(node):
         return isinstance(node, c_ast.Constant) and node.value in consts
 
-    for node in pyfo.cast.find(fdef.body, is_constant):
-        pyfo.cast.replace(fdef.body, node, c_ast.ID(consts[node.value]))
+    for node in pina.cast.find(fdef.body, is_constant):
+        pina.cast.replace(fdef.body, node, c_ast.ID(consts[node.value]))
 
 
 def replace_func_names(fdef):
@@ -137,7 +137,7 @@ def replace_func_names(fdef):
     def is_valid(node):
         return isinstance(node, c_ast.FuncCall) and node.name.name in repl
 
-    for node in pyfo.cast.find(fdef.body, is_valid):
+    for node in pina.cast.find(fdef.body, is_valid):
         node.name.name = repl[node.name.name]
 
 
@@ -148,12 +148,12 @@ def replace_len_builtin(fdef, specs):
                len(node.args.exprs) == 1 and \
                isinstance(node.args.exprs[0], c_ast.ID)
 
-    for node in pyfo.cast.find(fdef.body, is_valid_len_call):
+    for node in pina.cast.find(fdef.body, is_valid_len_call):
         arg = node.args.exprs[0]
 
         if arg.name in specs:
             spec = specs[arg.name]
-            pyfo.cast.replace(fdef.body, node, c_ast.ID(str(sum(spec.shape))))
+            pina.cast.replace(fdef.body, node, c_ast.ID(str(sum(spec.shape))))
 
 
 def ast(func, specs, env=None):
@@ -169,10 +169,10 @@ def ast(func, specs, env=None):
 
     if env:
         if env.opt_level > 0:
-            pyfo.opt.level1(fdef, specs, env)
+            pina.opt.level1(fdef, specs, env)
 
         if env.opt_level > 1:
-            pyfo.opt.level2(fdef, specs, env)
+            pina.opt.level2(fdef, specs, env)
 
     # we replace constants after optimization passes, because the symbols might be
     # removed by the optimization
