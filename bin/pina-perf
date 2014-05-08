@@ -82,7 +82,8 @@ def measure_call(n_iterations, func, *args):
 
 
 def run_tests(opts, output):
-    results = {}
+    results_np = {}
+    results_cl = {}
     spinner = Spinner('Measuring ')
 
     m = Runtime(preferred_platform=opts.platform,
@@ -122,33 +123,46 @@ def run_tests(opts, output):
             tests.append((empty, reco_cl, (x, width / 2.0, sines, cosines)))
 
         for np_func, cl_func, args in tests:
-            mean_np, std_np = measure_call(opts.iterations, np_func, *args)
-            mean_cl, std_cl = measure_call(opts.iterations, m.jit(cl_func), *args)
-
             fname = np_func.__name__
-            tup = (mean_np, std_np, mean_cl, std_cl)
 
-            if fname in results:
-                results[fname][(width, height)] = tup
+            if not opts.disable_numpy:
+                tup = measure_call(opts.iterations, np_func, *args)
+
+                if fname in results_np:
+                    results_np[fname][(width, height)] = tup
+                else:
+                    results_np[fname] = {(width, height): tup}
+
+            tup = measure_call(opts.iterations, m.jit(cl_func), *args)
+
+            if fname in results_cl:
+                results_cl[fname][(width, height)] = tup
             else:
-                results[fname] = {(width, height): tup}
+                results_cl[fname] = {(width, height): tup}
 
             spinner.next()
 
     spinner.finish()
     output.write("width  height  ")
 
-    for name in results:
-        output.write('mnp_{name}  mcl_{name}  speed_{name}  '.format(name=name))
+    if not opts.disable_numpy:
+        output.write('  '.join(('mnp_{name}  mcl_{name} speed_{name}'.format(name=name) for name in results_np)))
+    else:
+        output.write('  '.join(('mcl_{name}'.format(name=name) for name in results_cl)))
 
     output.write("\n")
 
     for width, height in sizes:
         output.write('{}  {}  '.format(width, height))
 
-        for name in results:
-            mean_np, std_np, mean_cl, std_cl = results[name][(width, height)]
-            output.write('{}  {}  {}  '.format(mean_np, mean_cl, mean_np / mean_cl))
+        if not opts.disable_numpy:
+            for name in results_np:
+                mean_np, std_np = results_np[name][(width, height)]
+                mean_cl, std_cl = results_cl[name][(width, height)]
+                output.write('{}  {}  {}  '.format(mean_np, mean_cl, mean_np / mean_cl))
+        else:
+            for name in results_cl:
+                output.write('{}  '.format(results_cl[name][(width, height)][0]))
 
         output.write('\n')
 
@@ -198,6 +212,9 @@ if __name__ == '__main__':
 
     parser.add_argument('--with-reco', type=str, choices=["empty","numpy", ""], default="",
                         help="Enable reconstruction test")
+
+    parser.add_argument('--disable-numpy', action='store_true', default=False,
+                        help="Disable NumPy tests and speedup calculations")
 
     parser.add_argument('--platform', type=str, default=None,
                         help="Preferred platform to run tests")
