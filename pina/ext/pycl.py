@@ -210,8 +210,7 @@ class Runtime(object):
         self.env = pina.cl.ExecutionEnvironment()
         self.env.MAX_CONSTANT_SIZE = min(d.max_constant_buffer_size for d in self.devices)
         self.env.MAX_CONSTANT_ARGS = min(d.max_constant_args for d in self.devices)
-
-        self.opt_level = opt_level
+        self.env.opt_level = opt_level
         self.use_multi_gpu = use_multi_gpu
         self.n_devices = len(self.devices)
 
